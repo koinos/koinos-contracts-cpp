@@ -1,34 +1,12 @@
 #include <koinos/system/system_calls.hpp>
 
-#include <streambuf>
-
 using namespace koinos;
-
-//using vectorstream = boost::interprocess::basic_vectorstream< std::vector< char > >;
-
-extern "C" void invoke_system_call( uint32_t sid, char* ret_ptr, uint32_t ret_len, char* arg_ptr, uint32_t arg_len );
 
 #define KOINOS_NAME     "Koinos"
 #define KOINOS_SYMBOL   "KOIN"
 #define KOINOS_DECIMALS 8
 
-#define SUPPLY_KEY uint256( 0 )
-
-uint32_t get_entry_point()
-{
-   variable_blob return_buffer(10);
-   variable_blob args;
-
-   invoke_system_call(
-      (uint32_t)0x91208aee,
-      return_buffer.data(),
-      return_buffer.size(),
-      args.data(),
-      args.size()
-   );
-
-   return pack::from_variable_blob< uint32_t >( return_buffer );
-}
+#define SUPPLY_KEY uint64_t( 0 )
 
 enum entries : uint32_t
 {
@@ -41,30 +19,11 @@ enum entries : uint32_t
    mint_entry         = 0xc2f82bdc
 };
 
-template< typename T >
-bool get_object( const uint256& key, T& t )
-{
-   auto vb = system::db_get_object( 0, key, sizeof( T ) );
-   if( vb.size() )
-   {
-      t = pack::from_variable_blob< T >( vb );
-      return true;
-   }
-
-   return false;
-}
-
-template< typename T >
-bool put_object( const uint256& key, const T& value )
-{
-   return system::db_put_object( 0, key, pack::to_variable_blob( value ) );
-}
-
 struct transfer_args
 {
    chain::account_type from;
    chain::account_type to;
-   uint256             value;
+   uint64_t            value;
 };
 
 KOINOS_REFLECT( transfer_args, (from)(to)(value) );
@@ -72,7 +31,7 @@ KOINOS_REFLECT( transfer_args, (from)(to)(value) );
 struct mint_args
 {
    chain::account_type to;
-   uint256             value;
+   uint64_t            value;
 };
 
 KOINOS_REFLECT( mint_args, (to)(value) );
@@ -92,21 +51,21 @@ uint8_t decimals()
    return KOINOS_DECIMALS;
 }
 
-uint256 total_supply()
+uint64_t total_supply()
 {
-   uint256 supply = 0;
-   get_object< uint256 >( SUPPLY_KEY, supply );
+   uint64_t supply = 0;
+   system::db_get_object< uint64_t >( 0, SUPPLY_KEY, supply );
    return supply;
 }
 
-uint256 balance_of( const chain::account_type& owner )
+uint64_t balance_of( const chain::account_type& owner )
 {
-   uint256 balance = 0;
-   get_object< uint256 >( pack::from_variable_blob< uint256 >( owner ), balance );
+   uint64_t balance = 0;
+   system::db_get_object< uint64_t >( 0, owner, balance );
    return balance;
 }
 
-bool transfer( const chain::account_type& from, const chain::account_type& to, const uint256& value )
+bool transfer( const chain::account_type& from, const chain::account_type& to, const uint64_t& value )
 {
    system::require_authority( from );
    auto from_balance = balance_of( from );
@@ -116,13 +75,13 @@ bool transfer( const chain::account_type& from, const chain::account_type& to, c
    from_balance -= value;
    auto to_balance = balance_of( to ) + value;
 
-   auto success = put_object( pack::from_variable_blob< uint256 >( from ), from_balance );
-   if ( !success ) return false;
+   system::db_put_object( 0, from, from_balance );
+   system::db_put_object( 0, to, to_balance );
 
-   return put_object( pack::from_variable_blob< uint256 >( to ), to_balance );
+   return true;
 }
 
-bool mint( const chain::account_type& to, const uint256& amount )
+bool mint( const chain::account_type& to, const uint64_t& amount )
 {
    // TODO: Authorization
    auto supply = total_supply();
@@ -130,17 +89,16 @@ bool mint( const chain::account_type& to, const uint256& amount )
 
    if ( new_supply < supply ) return false; // Overflow detected
 
-   auto success = put_object( SUPPLY_KEY, new_supply );
-   if ( !success ) return false;
-
    auto to_balance = balance_of( to ) + amount;
 
-   return put_object( pack::from_variable_blob< uint256 >( to ), to_balance );
+   system::db_put_object( 0, SUPPLY_KEY, new_supply );
+   system::db_put_object( 0, to, to_balance );
+   return true;
 }
 
 int main()
 {
-   auto entry_point = get_entry_point();
+   auto entry_point = system::get_entry_point();
    auto args = system::get_contract_args();
 
    variable_blob return_blob;
@@ -170,6 +128,7 @@ int main()
       case entries::balance_of_entry:
       {
          auto owner = pack::from_variable_blob< chain::account_type >( args );
+         system::print( std::string( owner.data(), owner.size() ) );
          return_blob = pack::to_variable_blob( balance_of( owner ) );
          break;
       }
@@ -182,6 +141,7 @@ int main()
       case entries::mint_entry:
       {
          auto m_args = pack::from_variable_blob< mint_args >( args );
+         system::print( std::string( m_args.to.data(), m_args.to.size() ) );
          return_blob = pack::to_variable_blob( mint( m_args.to, m_args.value ) );
          break;
       }
@@ -194,4 +154,3 @@ int main()
    system::exit_contract( 0 );
    return 0;
 }
-
