@@ -83,7 +83,8 @@ bool transfer( const chain::account_type& from, const chain::account_type& to, c
 
 bool mint( const chain::account_type& to, const uint64_t& amount )
 {
-   // TODO: Authorization
+   if ( system::get_caller().caller_privilege != chain::privilege::kernel_mode ) return false;
+
    auto supply = total_supply();
    auto new_supply = supply + amount;
 
