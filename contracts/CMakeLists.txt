@@ -1,3 +1,16 @@
-add_executable(koin koin.cpp)
+macro(SUBDIRLIST result curdir)
+   file(GLOB children RELATIVE ${curdir} ${curdir}/*)
+   set(dirlist "")
+   foreach(child ${children})
+      if(IS_DIRECTORY ${curdir}/${child})
+         list(APPEND dirlist ${child})
+      endif()
+   endforeach()
+   set(${result} ${dirlist})
+endmacro()
 
-target_link_libraries(koin koinos_api koinos_api_cpp koinos_wasi_api c c++ c++abi clang_rt.builtins-wasm32)
+SUBDIRLIST(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
+
+foreach(subdir ${SUBDIRS})
+   add_subdirectory(${subdir})
+endforeach()
