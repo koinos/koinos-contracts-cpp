@@ -1,4 +1,5 @@
 #include <koinos/system/system_calls.hpp>
+#include <koinos/token.hpp>
 
 using namespace koinos;
 
@@ -11,6 +12,8 @@ using namespace koinos;
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
+
+uint256_t contract_id;
 
 struct pow_signature_data
 {
@@ -43,26 +46,13 @@ struct mint_args
 
 KOINOS_REFLECT( mint_args, (to)(value) );
 
-inline uint256_t get_initial_difficulty()
-{
-   uint256_t difficulty = ~0;
-   difficulty <<= 64;
-   difficulty |= ~0;
-   difficulty <<= 64;
-   difficulty |= ~0;
-   difficulty <<= 64;
-   difficulty |= ~0;
-
-   return difficulty;
-}
-
 difficulty_metadata get_difficulty_meta()
 {
    difficulty_metadata diff_meta;
-   system::db_get_object( 0 /* get_contract_id */, DIFFICULTY_METADATA_KEY, diff_meta );
+   system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
    if ( diff_meta.current_difficulty == 0 )
    {
-      diff_meta.current_difficulty = get_initial_difficulty();
+      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max();
    }
 
    return diff_meta;
@@ -71,6 +61,7 @@ difficulty_metadata get_difficulty_meta()
 uint256_t get_and_update_difficulty( timestamp_type current_block_time )
 {
    auto diff_meta = get_difficulty_meta();
+   auto old_difficulty = diff_meta.current_difficulty;
 
    if ( diff_meta.last_block_time )
    {
@@ -89,7 +80,7 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
       auto average_block_interval_ms = diff_meta.block_window_time * 1000 / diff_meta.averaging_window;
       auto block_time_diff = TARGET_BLOCK_INTERVAL_MS - average_block_interval_ms;
 
-      if ( current_block_time / 600 > last_block_time / 600 )
+      if ( current_block_time / 600 > diff_meta.last_block_time / 600 )
       {
          diff_meta.current_difficulty -= ( diff_meta.current_difficulty * block_time_diff ) / TARGET_BLOCK_INTERVAL_MS;
       }
@@ -97,9 +88,9 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
 
    diff_meta.last_block_time = current_block_time;
 
-   system::db_put_object( 0, DIFFICULTY_METADATA_KEY, diff_meta );
+   system::db_put_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
 
-   return diff_meta.current_difficulty;
+   return old_difficulty;
 }
 
 int main()
@@ -108,11 +99,12 @@ int main()
 
    if ( entry_point == GET_DIFFICULTY_ENTRYPOINT )
    {
-      system::set_contract_return( pack::to_variable_blob( get_difficulty_meta() ) );
+      system::set_contract_return( get_difficulty_meta() );
       system::exit_contract( 0 );
    }
 
-   auto args = pack::from_variable_blob< chain::verify_block_signature_args >( system::get_contract_args() );
+   contract_id = pack::from_variable_blob< uint160_t >( pack::to_variable_blob( system::get_contract_id() ) );
+   auto args = system::get_contract_args< chain::verify_block_signature_args >();
    auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
    to_hash.insert( to_hash.end(), args.digest.digest.begin(), args.digest.digest.end() );
@@ -124,28 +116,19 @@ int main()
 
    if ( pow > target )
    {
-      system::set_contract_return( pack::to_variable_blob( false ) );
+      system::set_contract_return( false );
       system::exit_contract( 0 );
    }
 
    // Recover address from signature
    auto producer = system::recover_public_key( pack::to_variable_blob( signature_data.recoverable_signature ), args.digest );
 
-   auto koin_contract_id = pack::from_variable_blob< fixed_blob< 20 > >( pack::to_variable_blob( KOIN_CONTRACT ) );
-
    // Mint block reward to address
-   auto success = pack::from_variable_blob< bool >(
-      system::execute_contract(
-         koin_contract_id,
-         0xc2f82bdc,
-         pack::to_variable_blob( mint_args {
-            .to = producer,
-            .value = BLOCK_REWARD
-         })
-      )
-   );
+   auto koin_token = koinos::token( KOIN_CONTRACT );
+   auto success = koin_token.mint( producer, BLOCK_REWARD );
 
-   system::set_contract_return( pack::to_variable_blob( false ) );
+   system::set_contract_return( success );
+   system::exit_contract( 0 );
 
    return 0;
 }
