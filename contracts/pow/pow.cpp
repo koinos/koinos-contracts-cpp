@@ -98,6 +98,7 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
 int main()
 {
    auto entry_point = system::get_entry_point();
+   contract_id = pack::from_variable_blob< uint160_t >( pack::to_variable_blob( system::get_contract_id() ) );
 
    if ( entry_point == GET_DIFFICULTY_ENTRYPOINT )
    {
@@ -105,7 +106,6 @@ int main()
       system::exit_contract( 0 );
    }
 
-   contract_id = pack::from_variable_blob< uint160_t >( pack::to_variable_blob( system::get_contract_id() ) );
    auto args = system::get_contract_args< chain::verify_block_signature_args >();
    auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
