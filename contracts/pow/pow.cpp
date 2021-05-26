@@ -13,6 +13,8 @@ using namespace koinos;
 
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
 
+#define CRYPTO_SHA1_ID uint64_t(0x11)
+
 uint256_t contract_id;
 
 struct pow_signature_data
@@ -52,7 +54,7 @@ difficulty_metadata get_difficulty_meta()
    system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
    if ( diff_meta.current_difficulty == 0 )
    {
-      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max();
+      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 8;
    }
 
    return diff_meta;
@@ -109,10 +111,10 @@ int main()
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
    to_hash.insert( to_hash.end(), args.digest.digest.begin(), args.digest.digest.end() );
 
-   auto pow = pack::from_variable_blob< uint160_t >( system::hash( 1, to_hash ).digest );
+   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA1_ID, to_hash ).digest );
 
    // Get/update difficulty from database
-   uint256_t target = get_and_update_difficulty( timestamp_type( 0 ) );
+   auto target = get_and_update_difficulty( system::get_head_block_time() );
 
    if ( pow > target )
    {
