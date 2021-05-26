@@ -5,15 +5,12 @@ using namespace koinos;
 
 #define KOIN_CONTRACT uint160_t( 0 )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
-
 #define TARGET_BLOCK_INTERVAL_MS 10000
 #define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
-
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
-
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
-
 #define CRYPTO_SHA1_ID uint64_t(0x11)
+#define POW_END_DATE 1640995199 // 2021-12-31T23:59:59Z
 
 uint256_t contract_id;
 
@@ -114,6 +111,13 @@ int main()
    auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA1_ID, to_hash ).digest );
 
    // Get/update difficulty from database
+   auto head_block_time = system::get_head_block_time();
+   if ( head_block_time > POW_END_DATE )
+   {
+      system::set_contract_return( false );
+      system::exit_contract( 0 );
+   }
+
    auto target = get_and_update_difficulty( system::get_head_block_time() );
 
    if ( pow > target )
