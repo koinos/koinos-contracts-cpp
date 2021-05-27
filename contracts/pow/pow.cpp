@@ -13,7 +13,7 @@ using namespace koinos;
 
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
 
-#define CRYPTO_SHA1_ID uint64_t(0x11)
+#define CRYPTO_SHA2_256_ID uint64_t(0x12)
 
 uint256_t contract_id;
 
@@ -127,7 +127,7 @@ int main()
    to_hash.insert( to_hash.end(), args.digest.digest.begin(), args.digest.digest.end() );
 
    system::print( "Hashing id + digest\n" );
-   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA1_ID, to_hash ).digest );
+   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA2_256_ID, to_hash ).digest );
 
    // Get/update difficulty from database
    system::print( "Getting and updating difficulty target\n" );
