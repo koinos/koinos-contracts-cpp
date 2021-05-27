@@ -77,7 +77,7 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
       diff_meta.block_window_time += current_block_time - diff_meta.last_block_time;
 
       auto average_block_interval_ms = diff_meta.block_window_time * 1000 / diff_meta.averaging_window;
-      auto block_time_diff = TARGET_BLOCK_INTERVAL_MS - average_block_interval_ms;
+      auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval_ms ) / 1440;
 
       if ( current_block_time / 600 > diff_meta.last_block_time / 600 )
       {
@@ -103,6 +103,13 @@ int main()
       system::exit_contract( 0 );
    }
 
+   auto head_block_time = system::get_head_block_time();
+   if ( head_block_time > POW_END_DATE )
+   {
+      system::set_contract_return( false );
+      system::exit_contract( 0 );
+   }
+
    auto args = system::get_contract_args< chain::verify_block_signature_args >();
    auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
@@ -111,13 +118,6 @@ int main()
    auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA1_ID, to_hash ).digest );
 
    // Get/update difficulty from database
-   auto head_block_time = system::get_head_block_time();
-   if ( head_block_time > POW_END_DATE )
-   {
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
-   }
-
    auto target = get_and_update_difficulty( system::get_head_block_time() );
 
    if ( pow > target )
