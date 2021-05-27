@@ -7,6 +7,7 @@ using namespace koinos;
 #define BLOCK_REWARD  10000000000 // 100 KOIN
 
 #define TARGET_BLOCK_INTERVAL_MS 10000
+#define UPDATE_DIFFICULTY_DELTA_MS 60000
 #define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
 
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
@@ -54,7 +55,7 @@ difficulty_metadata get_difficulty_meta()
    system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
    if ( diff_meta.current_difficulty == 0 )
    {
-      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 8;
+      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 22;
    }
 
    return diff_meta;
@@ -82,15 +83,17 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
       system::print( "Adding current block interval\n" );
       diff_meta.block_window_time += current_block_time - diff_meta.last_block_time;
 
-      if ( current_block_time / 600 > diff_meta.last_block_time / 600 )
+      system::print( "current_block_time: " + std::to_string( current_block_time.t ) + ", last_block_time: " + std::to_string( diff_meta.last_block_time.t ) + ", block_window_time: " + std::to_string( diff_meta.block_window_time.t ) + '\n' );
+
+      if ( current_block_time / UPDATE_DIFFICULTY_DELTA_MS > diff_meta.last_block_time / UPDATE_DIFFICULTY_DELTA_MS )
       {
          system::print( "Updating difficulty for new minute\n" );
 
          system::print( "Calculating average block interval\n" );
-         auto average_block_interval_ms = diff_meta.block_window_time * 1000 / diff_meta.averaging_window;
+         int64_t average_block_interval = diff_meta.block_window_time / diff_meta.averaging_window;
 
          system::print( "Calculating difference between observed and desired block interval\n" );
-         auto block_time_diff = TARGET_BLOCK_INTERVAL_MS - average_block_interval_ms;
+         auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval ) / 1440;
 
          system::print( "Calculating new difficulty\n" );
          diff_meta.current_difficulty -= ( diff_meta.current_difficulty * block_time_diff ) / TARGET_BLOCK_INTERVAL_MS;
@@ -121,6 +124,8 @@ int main()
    auto args = system::get_contract_args< chain::verify_block_signature_args >();
    system::print( "unpacking pow signature data\n" );
    auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
+   system::print( "Nonce: " + signature_data.nonce.str() + '\n' );
+   system::print( "Digest: " + pack::from_variable_blob< uint256 >( pack::to_variable_blob( args.digest.digest ) ).str() + '\n' );
    system::print( "Copying nonce to vb\n" );
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
    system::print( "Appending digest to vb\n" );
@@ -132,6 +137,8 @@ int main()
    // Get/update difficulty from database
    system::print( "Getting and updating difficulty target\n" );
    auto target = get_and_update_difficulty( system::get_head_block_time() );
+
+   system::print( "Difficulty target: " + target.str() + '\n' );
 
    if ( pow > target )
    {
