@@ -10,7 +10,7 @@ using namespace koinos;
 #define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
-#define CRYPTO_SHA1_ID uint64_t(0x12)
+#define CRYPTO_SHA2_256_ID uint64_t(0x12)
 #define POW_END_DATE 1640995199 // 2021-12-31T23:59:59Z
 
 uint256_t contract_id;
