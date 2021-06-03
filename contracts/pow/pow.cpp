@@ -131,6 +131,7 @@ int main()
 
    if ( pow > target )
    {
+      system::print( "pow did not meet target\n" );
       system::set_contract_return( false );
       system::exit_contract( 0 );
    }
@@ -142,6 +143,11 @@ int main()
    auto koin_token = koinos::token( KOIN_CONTRACT );
 
    auto success = koin_token.mint( producer, BLOCK_REWARD );
+   if ( !success )
+   {
+      system::print( "could not mint KOIN to producer address " + std::string( producer.data(), producer.size() ) + '\n' );
+   }
+
    system::set_contract_return( success );
    system::exit_contract( 0 );
 
