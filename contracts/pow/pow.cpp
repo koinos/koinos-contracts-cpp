@@ -6,10 +6,11 @@ using namespace koinos;
 #define KOIN_CONTRACT uint160_t( 0 )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
 #define TARGET_BLOCK_INTERVAL_MS 10000
+#define UPDATE_DIFFICULTY_DELTA_MS 60000
 #define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
-#define CRYPTO_SHA1_ID uint64_t(0x11)
+#define CRYPTO_SHA1_ID uint64_t(0x12)
 #define POW_END_DATE 1640995199 // 2021-12-31T23:59:59Z
 
 uint256_t contract_id;
@@ -51,7 +52,7 @@ difficulty_metadata get_difficulty_meta()
    system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
    if ( diff_meta.current_difficulty == 0 )
    {
-      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 8;
+      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 22;
    }
 
    return diff_meta;
@@ -76,12 +77,24 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
 
       diff_meta.block_window_time += current_block_time - diff_meta.last_block_time;
 
-      auto average_block_interval_ms = diff_meta.block_window_time * 1000 / diff_meta.averaging_window;
-      auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval_ms ) / 1440;
-
-      if ( current_block_time / 600 > diff_meta.last_block_time / 600 )
+      if ( current_block_time / UPDATE_DIFFICULTY_DELTA_MS > diff_meta.last_block_time / UPDATE_DIFFICULTY_DELTA_MS )
       {
-         diff_meta.current_difficulty -= ( diff_meta.current_difficulty * block_time_diff ) / TARGET_BLOCK_INTERVAL_MS;
+         uint64_t average_block_interval = diff_meta.block_window_time / diff_meta.averaging_window;
+
+         if ( average_block_interval < TARGET_BLOCK_INTERVAL_MS )
+         {
+            auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval );
+
+            // This is a loss of precision, but it is a 256bit value, we should be fine
+            diff_meta.current_difficulty -= ( diff_meta.current_difficulty / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
+         }
+         else if ( average_block_interval > TARGET_BLOCK_INTERVAL_MS )
+         {
+            auto block_time_diff = ( average_block_interval - TARGET_BLOCK_INTERVAL_MS );
+
+            // This is a loss of precision, but it is a 256bit value, we should be fine
+            diff_meta.current_difficulty += ( diff_meta.current_difficulty / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
+         }
       }
    }
 
@@ -115,7 +128,7 @@ int main()
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
    to_hash.insert( to_hash.end(), args.digest.digest.begin(), args.digest.digest.end() );
 
-   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA1_ID, to_hash ).digest );
+   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA2_256_ID, to_hash ).digest );
 
    // Get/update difficulty from database
    auto target = get_and_update_difficulty( system::get_head_block_time() );
@@ -131,8 +144,8 @@ int main()
 
    // Mint block reward to address
    auto koin_token = koinos::token( KOIN_CONTRACT );
-   auto success = koin_token.mint( producer, BLOCK_REWARD );
 
+   auto success = koin_token.mint( producer, BLOCK_REWARD );
    system::set_contract_return( success );
    system::exit_contract( 0 );
 

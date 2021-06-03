@@ -132,7 +132,6 @@ int main()
       case entries::balance_of_entry:
       {
          auto owner = pack::from_variable_blob< chain::account_type >( args );
-         system::print( std::string( owner.data(), owner.size() ) );
          return_blob = pack::to_variable_blob( balance_of( owner ) );
          break;
       }
@@ -145,7 +144,6 @@ int main()
       case entries::mint_entry:
       {
          auto m_args = pack::from_variable_blob< mint_args >( args );
-         system::print( std::string( m_args.to.data(), m_args.to.size() ) );
          return_blob = pack::to_variable_blob( mint( m_args.to, m_args.value ) );
          break;
       }
@@ -153,7 +151,7 @@ int main()
          system::exit_contract( 1 );
    }
 
-   system::set_contract_return( return_blob );
+   system::set_contract_return_vb( return_blob );
 
    system::exit_contract( 0 );
    return 0;
