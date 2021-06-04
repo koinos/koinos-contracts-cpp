@@ -8,6 +8,8 @@ using namespace koinos;
 
 #define SUPPLY_KEY uint64_t( 0 )
 
+uint256_t contract_db_space = 0;
+
 enum entries : uint32_t
 {
    name_entry         = 0x76ea4297,
@@ -54,14 +56,14 @@ uint8_t decimals()
 uint64_t total_supply()
 {
    uint64_t supply = 0;
-   system::db_get_object< uint64_t >( 0, SUPPLY_KEY, supply );
+   system::db_get_object< uint64_t >( contract_db_space, SUPPLY_KEY, supply );
    return supply;
 }
 
 uint64_t balance_of( const chain::account_type& owner )
 {
    uint64_t balance = 0;
-   system::db_get_object< uint64_t >( 0, owner, balance );
+   system::db_get_object< uint64_t >( contract_db_space, owner, balance );
    return balance;
 }
 
@@ -75,8 +77,8 @@ bool transfer( const chain::account_type& from, const chain::account_type& to, c
    from_balance -= value;
    auto to_balance = balance_of( to ) + value;
 
-   system::db_put_object( 0, from, from_balance );
-   system::db_put_object( 0, to, to_balance );
+   system::db_put_object( contract_db_space, from, from_balance );
+   system::db_put_object( contract_db_space, to, to_balance );
 
    return true;
 }
@@ -92,8 +94,8 @@ bool mint( const chain::account_type& to, const uint64_t& amount )
 
    auto to_balance = balance_of( to ) + amount;
 
-   system::db_put_object( 0, SUPPLY_KEY, new_supply );
-   system::db_put_object( 0, to, to_balance );
+   system::db_put_object( contract_db_space, SUPPLY_KEY, new_supply );
+   system::db_put_object( contract_db_space, to, to_balance );
    return true;
 }
 
@@ -101,6 +103,7 @@ int main()
 {
    auto entry_point = system::get_entry_point();
    auto args = system::get_contract_args();
+   contract_db_space = pack::from_variable_blob< uint160_t >( pack::to_variable_blob( system::get_contract_id() ) );
 
    variable_blob return_blob;
 
@@ -129,7 +132,6 @@ int main()
       case entries::balance_of_entry:
       {
          auto owner = pack::from_variable_blob< chain::account_type >( args );
-         system::print( std::string( owner.data(), owner.size() ) );
          return_blob = pack::to_variable_blob( balance_of( owner ) );
          break;
       }
@@ -142,7 +144,6 @@ int main()
       case entries::mint_entry:
       {
          auto m_args = pack::from_variable_blob< mint_args >( args );
-         system::print( std::string( m_args.to.data(), m_args.to.size() ) );
          return_blob = pack::to_variable_blob( mint( m_args.to, m_args.value ) );
          break;
       }
@@ -150,7 +151,7 @@ int main()
          system::exit_contract( 1 );
    }
 
-   system::set_contract_return( return_blob );
+   system::set_contract_return_vb( return_blob );
 
    system::exit_contract( 0 );
    return 0;
