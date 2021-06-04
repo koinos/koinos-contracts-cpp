@@ -5,16 +5,13 @@ using namespace koinos;
 
 #define KOIN_CONTRACT uint160_t( 0 )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
-
 #define TARGET_BLOCK_INTERVAL_MS 10000
 #define UPDATE_DIFFICULTY_DELTA_MS 60000
 #define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
-
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
-
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
-
 #define CRYPTO_SHA2_256_ID uint64_t(0x12)
+#define POW_END_DATE 1640995199 // 2021-12-31T23:59:59Z
 
 uint256_t contract_id;
 
@@ -28,14 +25,14 @@ KOINOS_REFLECT( pow_signature_data, (nonce)(recoverable_signature) )
 
 struct difficulty_metadata
 {
-   uint256_t      current_difficulty = 0;
+   uint256_t      difficulty_target = 0;
    timestamp_type last_block_time = timestamp_type( 0 );
    timestamp_type block_window_time = timestamp_type( 0 );
    uint32_t       averaging_window = 0;
 };
 
 KOINOS_REFLECT( difficulty_metadata,
-   (current_difficulty)
+   (difficulty_target)
    (last_block_time)
    (block_window_time)
    (averaging_window)
@@ -53,19 +50,16 @@ difficulty_metadata get_difficulty_meta()
 {
    difficulty_metadata diff_meta;
    system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
-   if ( diff_meta.current_difficulty == 0 )
+   if ( diff_meta.difficulty_target == 0 )
    {
-      diff_meta.current_difficulty = std::numeric_limits< uint256_t >::max() >> 22;
+      diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() >> 22;
    }
 
    return diff_meta;
 }
 
-uint256_t get_and_update_difficulty( timestamp_type current_block_time )
+void update_difficulty( difficulty_metadata diff_meta, timestamp_type current_block_time )
 {
-   auto diff_meta = get_difficulty_meta();
-   auto old_difficulty = diff_meta.current_difficulty;
-
    if ( diff_meta.last_block_time )
    {
       if ( diff_meta.averaging_window >= BLOCK_AVERAGING_WINDOW )
@@ -89,14 +83,14 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
             auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval );
 
             // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.current_difficulty -= ( diff_meta.current_difficulty / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
+            diff_meta.difficulty_target -= ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
          }
          else if ( average_block_interval > TARGET_BLOCK_INTERVAL_MS )
          {
             auto block_time_diff = ( average_block_interval - TARGET_BLOCK_INTERVAL_MS );
 
             // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.current_difficulty += ( diff_meta.current_difficulty / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
+            diff_meta.difficulty_target += ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
          }
       }
    }
@@ -104,8 +98,6 @@ uint256_t get_and_update_difficulty( timestamp_type current_block_time )
    diff_meta.last_block_time = current_block_time;
 
    system::db_put_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
-
-   return old_difficulty;
 }
 
 int main()
@@ -119,6 +111,13 @@ int main()
       system::exit_contract( 0 );
    }
 
+   auto head_block_time = system::get_head_block_time();
+   if ( head_block_time > POW_END_DATE )
+   {
+      system::set_contract_return( false );
+      system::exit_contract( 0 );
+   }
+
    auto args = system::get_contract_args< chain::verify_block_signature_args >();
    auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
    auto to_hash = pack::to_variable_blob( signature_data.nonce );
@@ -127,14 +126,16 @@ int main()
    auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA2_256_ID, to_hash ).digest );
 
    // Get/update difficulty from database
-   auto target = get_and_update_difficulty( system::get_head_block_time() );
+   auto diff_meta = get_difficulty_meta();
 
-   if ( pow > target )
+   if ( pow > diff_meta.difficulty_target )
    {
       system::print( "pow did not meet target\n" );
       system::set_contract_return( false );
       system::exit_contract( 0 );
    }
+
+   update_difficulty( diff_meta, head_block_time );
 
    // Recover address from signature
    auto producer = system::recover_public_key( pack::to_variable_blob( signature_data.recoverable_signature ), args.digest );
