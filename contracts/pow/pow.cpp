@@ -40,8 +40,8 @@ KOINOS_REFLECT( difficulty_metadata,
 
 struct mint_args
 {
-   chain::account_type to;
-   uint64_t            value;
+   protocol::account_type to;
+   uint64_t               value;
 };
 
 KOINOS_REFLECT( mint_args, (to)(value) );
@@ -140,10 +140,19 @@ int main()
    // Recover address from signature
    auto producer = system::recover_public_key( pack::to_variable_blob( signature_data.recoverable_signature ), args.digest );
 
+   args.active_data.unbox();
+   auto active_data = args.active_data.get_const_native();
+   if ( producer != active_data.signer )
+   {
+      system::print( "signature and signer are mismatching\n" );
+      system::set_contract_return( false );
+      system::exit_contract( 0 );
+   }
+
    // Mint block reward to address
    auto koin_token = koinos::token( KOIN_CONTRACT );
 
-   auto success = koin_token.mint( producer, BLOCK_REWARD );
+   auto success = koin_token.mint( active_data.signer, BLOCK_REWARD );
    if ( !success )
    {
       system::print( "could not mint KOIN to producer address " + std::string( producer.data(), producer.size() ) + '\n' );
