@@ -38,14 +38,6 @@ KOINOS_REFLECT( difficulty_metadata,
    (averaging_window)
 )
 
-struct mint_args
-{
-   protocol::account_type to;
-   uint64_t               value;
-};
-
-KOINOS_REFLECT( mint_args, (to)(value) );
-
 difficulty_metadata get_difficulty_meta()
 {
    difficulty_metadata diff_meta;
