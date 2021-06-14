@@ -23,17 +23,17 @@ enum entries : uint32_t
 
 struct transfer_args
 {
-   chain::account_type from;
-   chain::account_type to;
-   uint64_t            value;
+   protocol::account_type from;
+   protocol::account_type to;
+   uint64_t               value;
 };
 
 KOINOS_REFLECT( transfer_args, (from)(to)(value) );
 
 struct mint_args
 {
-   chain::account_type to;
-   uint64_t            value;
+   protocol::account_type to;
+   uint64_t               value;
 };
 
 KOINOS_REFLECT( mint_args, (to)(value) );
@@ -60,14 +60,14 @@ uint64_t total_supply()
    return supply;
 }
 
-uint64_t balance_of( const chain::account_type& owner )
+uint64_t balance_of( const protocol::account_type& owner )
 {
    uint64_t balance = 0;
    system::db_get_object< uint64_t >( contract_db_space, owner, balance );
    return balance;
 }
 
-bool transfer( const chain::account_type& from, const chain::account_type& to, const uint64_t& value )
+bool transfer( const protocol::account_type& from, const protocol::account_type& to, const uint64_t& value )
 {
    system::require_authority( from );
    auto from_balance = balance_of( from );
@@ -83,7 +83,7 @@ bool transfer( const chain::account_type& from, const chain::account_type& to, c
    return true;
 }
 
-bool mint( const chain::account_type& to, const uint64_t& amount )
+bool mint( const protocol::account_type& to, const uint64_t& amount )
 {
    if ( system::get_caller().caller_privilege != chain::privilege::kernel_mode ) return false;
 
@@ -131,7 +131,7 @@ int main()
       }
       case entries::balance_of_entry:
       {
-         auto owner = pack::from_variable_blob< chain::account_type >( args );
+         auto owner = pack::from_variable_blob< protocol::account_type >( args );
          return_blob = pack::to_variable_blob( balance_of( owner ) );
          break;
       }
