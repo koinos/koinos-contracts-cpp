@@ -11,7 +11,7 @@ using namespace koinos;
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
 #define CRYPTO_SHA2_256_ID uint64_t(0x12)
-#define POW_END_DATE 1640995199 // 2021-12-31T23:59:59Z
+#define POW_END_DATE 1640995199000 // 2021-12-31T23:59:59Z
 
 uint256_t contract_id;
 
@@ -141,8 +141,9 @@ int main()
    auto producer = system::recover_public_key( pack::to_variable_blob( signature_data.recoverable_signature ), args.digest );
 
    args.active_data.unbox();
-   auto active_data = args.active_data.get_const_native();
-   if ( producer != active_data.signer )
+   auto signer = args.active_data.get_const_native().signer;
+
+   if ( producer != signer )
    {
       system::print( "signature and signer are mismatching\n" );
       system::set_contract_return( false );
@@ -152,7 +153,7 @@ int main()
    // Mint block reward to address
    auto koin_token = koinos::token( KOIN_CONTRACT );
 
-   auto success = koin_token.mint( active_data.signer, BLOCK_REWARD );
+   auto success = koin_token.mint( signer, BLOCK_REWARD );
    if ( !success )
    {
       system::print( "could not mint KOIN to producer address " + std::string( producer.data(), producer.size() ) + '\n' );
