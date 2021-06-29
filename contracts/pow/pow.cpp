@@ -3,7 +3,7 @@
 
 using namespace koinos;
 
-#define KOIN_CONTRACT uint160_t( 0 )
+#define KOIN_CONTRACT uint160_t( "0x930f7a991f8787bd485b02684ffda52570439794" )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
 #define TARGET_BLOCK_INTERVAL_MS 10000
 #define UPDATE_DIFFICULTY_DELTA_MS 60000
@@ -44,7 +44,7 @@ difficulty_metadata get_difficulty_meta()
    system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
    if ( diff_meta.difficulty_target == 0 )
    {
-      diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() >> 22;
+      diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() >> 26;
    }
 
    return diff_meta;
@@ -106,6 +106,13 @@ int main()
    auto head_block_time = system::get_head_block_time();
    if ( head_block_time > POW_END_DATE )
    {
+      system::set_contract_return( false );
+      system::exit_contract( 0 );
+   }
+
+   if ( system::get_caller().caller_privilege != chain::privilege::kernel_mode )
+   {
+      system::print( "pow contract must be called from kernel" );
       system::set_contract_return( false );
       system::exit_contract( 0 );
    }
