@@ -6,12 +6,18 @@ using namespace koinos;
 #define KOIN_CONTRACT uint160_t( "0x930f7a991f8787bd485b02684ffda52570439794" )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
 #define TARGET_BLOCK_INTERVAL_MS 10000
-#define UPDATE_DIFFICULTY_DELTA_MS 60000
-#define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
 #define CRYPTO_SHA2_256_ID uint64_t(0x12)
 #define POW_END_DATE 1640995199000 // 2021-12-31T23:59:59Z
+
+#define HC_HALFLIFE_MS      uint64_t(60*60*24*1000)
+#define FREE_RUN_SAT_MULT   2
+
+/**
+ * Diminishing returns bonus constant.
+ */
+#define DR_BONUS            uint64_t(0x1cd85d3da)
 
 uint256_t contract_id;
 
@@ -23,7 +29,7 @@ struct pow_signature_data
 
 KOINOS_REFLECT( pow_signature_data, (nonce)(recoverable_signature) )
 
-struct difficulty_metadata
+struct difficulty_metadata_v1
 {
    uint256_t      difficulty_target = 0;
    timestamp_type last_block_time = timestamp_type( 0 );
@@ -31,61 +37,176 @@ struct difficulty_metadata
    uint32_t       averaging_window = 0;
 };
 
-KOINOS_REFLECT( difficulty_metadata,
+KOINOS_REFLECT( difficulty_metadata_v1,
    (difficulty_target)
    (last_block_time)
    (block_window_time)
    (averaging_window)
 )
 
+struct difficulty_metadata_v2
+{
+   uint256_t      difficulty_target = 0;
+   timestamp_type last_block_time = timestamp_type( 0 );
+   uint64_t       required_hc = 0;
+   uint128_t      hc_reserve;
+   uint128_t      us_reserve;
+   timestamp_type target_block_interval = timestamp_type( TARGET_BLOCK_INTERVAL_MS / 1000 );
+};
+
+KOINOS_REFLECT( difficulty_metadata_v2,
+   (difficulty_target)
+   (last_block_time)
+   (required_hc)
+   (hc_reserve)
+   (us_reserve)
+   (target_block_interval)
+)
+
+using difficulty_metadata = difficulty_metadata_v2;
+
+uint64_t get_hc_reserve_multiplier(uint32_t effective_us)
+{
+   // Rescale so that 2^32 represents one half-life
+   uint64_t udt = (uint64_t( effective_us ) << 32) / (uint64_t(1000) * HC_HALFLIFE_MS);
+   int64_t idt = int64_t(udt);
+
+   int64_t y = -0xa2b23f3;
+   y *= idt;
+   y >>= 32;
+   y += 0x3b9d3bec;
+   y *= idt;
+   y >>= 32;
+   y -= 0xb17217f7;
+   y *= idt;
+
+   y >>= 32;
+   y += 0x100000000;
+   if( y < 0 )
+      y = 0;
+   return uint64_t( y );
+   /*
+   y = (y > 0) ? 0 : -y;
+   return uint64_t( y );
+   */
+}
+
+void set_difficulty_target( difficulty_metadata& diff_meta )
+{
+   if( diff_meta.us_reserve <= TARGET_BLOCK_INTERVAL_MS )
+   {
+      diff_meta.difficulty_target = 0;
+      return;
+   }
+
+   // x*y = k
+   // -> (x+dx)*(y+dy) = x*y
+   // -> x*y + dx*y + dy*x + dx*dy = x*y
+   // -> dx*(y+dy) = -dy*x
+   // -> dx = -dy*x/(y+dy)
+   //
+   // dy = -TARGET_BLOCK_INTERVAL_MS
+
+   // TODO:  Overflow analysis
+
+   diff_meta.required_hc = uint64_t( ((1000 * TARGET_BLOCK_INTERVAL_MS) * diff_meta.hc_reserve) / (diff_meta.us_reserve - (1000 * TARGET_BLOCK_INTERVAL_MS)) );
+   ++diff_meta.required_hc;
+   diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() / diff_meta.required_hc;
+}
+
+difficulty_metadata initialize_difficulty( const difficulty_metadata_v1& pow1_meta )
+{
+   uint64_t initial_hashes_per_block = ( std::numeric_limits< uint256_t >::max() / pow1_meta.difficulty_target ).convert_to< uint64_t >();
+   uint64_t initial_hashes_per_second = initial_hashes_per_block / ( TARGET_BLOCK_INTERVAL_MS / 1000 );
+   uint64_t effective_us = uint64_t( 1000 ) * TARGET_BLOCK_INTERVAL_MS;
+   uint64_t reserve_multiplier = get_hc_reserve_multiplier(effective_us);
+   uint64_t sub_fraction = (uint64_t(1) << 32) - reserve_multiplier;
+
+   difficulty_metadata diff_meta;
+
+   // Compute initial hc_reserve by assuming dt's of effective_us have no net effect:
+   //
+   // + initial_hashes_per_block - sub_fraction*x = 0
+   // x = initial_hashes_per_block / sub_fraction
+   diff_meta.hc_reserve = (uint128_t(initial_hashes_per_block) << 32) / sub_fraction;
+
+   // Compute initial us_reserve by assuming hc_reserve / (us_reserve / 1000000) = initial_hashes_per_secnod
+   // -> hc_reserve / initial_hashes_per_block = us_reserve / 1000000
+   // -> us_reserve = 1000000 * hc_reserve / initial_hashes_per_block
+   diff_meta.us_reserve = (diff_meta.hc_reserve * 1000000) / initial_hashes_per_second;
+
+   set_difficulty_target(diff_meta);
+
+   return diff_meta;
+}
+
 difficulty_metadata get_difficulty_meta()
 {
    difficulty_metadata diff_meta;
-   system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
-   if ( diff_meta.difficulty_target == 0 )
+   auto diff_meta_vb = system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY );
+
+   if ( diff_meta_vb.size() == sizeof( difficulty_metadata ) )
    {
-      diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() >> 26;
+      diff_meta = pack::from_variable_blob< difficulty_metadata >( diff_meta_vb );
+   }
+   else
+   {
+      auto pow1_meta = pack::from_variable_blob< difficulty_metadata_v1 >( diff_meta_vb );
+      diff_meta = initialize_difficulty( pow1_meta );
    }
 
    return diff_meta;
 }
 
-void update_difficulty( difficulty_metadata diff_meta, timestamp_type current_block_time )
+/**
+ * Modulate input time delta by diminishing returns penalty / bonus factors.
+ *
+ * Result is scaled so that a value of 1,000,000 corresponds to one second.
+ */
+uint64_t get_effective_us(uint64_t dt_ms)
 {
-   if ( diff_meta.last_block_time )
-   {
-      if ( diff_meta.averaging_window >= BLOCK_AVERAGING_WINDOW )
-      {
-         // Decay block window time
-         diff_meta.block_window_time = diff_meta.block_window_time * (diff_meta.averaging_window - 1) / diff_meta.averaging_window;
-      }
-      else
-      {
-         diff_meta.averaging_window++;
-      }
+   // Given diminishing returns function f(x) = x / (1+x),
+   // compute f(t/k).  The result is f(t/k) = (t/k) / (1+t/k),
+   // but we can multiply top and bottom by k to get
+   // t / (k + t).
 
-      diff_meta.block_window_time += current_block_time - diff_meta.last_block_time;
+   // TODO:  Overflow analysis of this function
+   uint128_t dt_ms_prod = uint128_t(dt_ms) * DR_BONUS;
 
-      if ( current_block_time / UPDATE_DIFFICULTY_DELTA_MS > diff_meta.last_block_time / UPDATE_DIFFICULTY_DELTA_MS )
-      {
-         uint64_t average_block_interval = diff_meta.block_window_time / diff_meta.averaging_window;
+   // The numerator needs to be multiplied by 2^32 * r,
+   // which is exactly the value of the bonus.
+   // The denominator needs to be multiplied by the bonus only, so it is shifted.
+   uint128_t num = dt_ms_prod;
+   num *= uint64_t(1000)*FREE_RUN_SAT_MULT*TARGET_BLOCK_INTERVAL_MS;
+   uint128_t denom = dt_ms;
+   denom += FREE_RUN_SAT_MULT*TARGET_BLOCK_INTERVAL_MS;
+   denom <<= 32;
 
-         if ( average_block_interval < TARGET_BLOCK_INTERVAL_MS )
-         {
-            auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval );
+   return uint64_t(num / denom);
+}
 
-            // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.difficulty_target -= ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
-         }
-         else if ( average_block_interval > TARGET_BLOCK_INTERVAL_MS )
-         {
-            auto block_time_diff = ( average_block_interval - TARGET_BLOCK_INTERVAL_MS );
+void update_difficulty( difficulty_metadata& diff_meta, timestamp_type current_block_time )
+{
+   uint64_t dt = uint64_t(current_block_time) - uint64_t(diff_meta.last_block_time);
 
-            // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.difficulty_target += ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
-         }
-      }
-   }
+   // The order of the following computations assumes that the presented work
+   // is checked against the difficulty target before this function is called.
+
+   // TODO:  Overflow analysis of these computations
+   // Add the MM transactions representing the delivery of a block.
+   diff_meta.hc_reserve += diff_meta.required_hc;
+   diff_meta.us_reserve -= 1000 * TARGET_BLOCK_INTERVAL_MS;
+
+   // Free-running from the last block to the current block.
+
+   uint64_t effective_us = get_effective_us( uint64_t(dt) );
+   uint64_t reserve_multiplier = get_hc_reserve_multiplier(effective_us);
+
+   diff_meta.us_reserve += effective_us;
+   diff_meta.hc_reserve = (diff_meta.hc_reserve * reserve_multiplier) >> 32;
+
+   // Setup the difficulty_target and required_hc
+   set_difficulty_target(diff_meta);
 
    diff_meta.last_block_time = current_block_time;
 
@@ -106,13 +227,6 @@ int main()
    auto head_block_time = system::get_head_block_time();
    if ( head_block_time > POW_END_DATE )
    {
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
-   }
-
-   if ( system::get_caller().caller_privilege != chain::privilege::kernel_mode )
-   {
-      system::print( "pow contract must be called from kernel" );
       system::set_contract_return( false );
       system::exit_contract( 0 );
    }
