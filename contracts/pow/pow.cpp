@@ -6,12 +6,18 @@ using namespace koinos;
 #define KOIN_CONTRACT uint160_t( "0x930f7a991f8787bd485b02684ffda52570439794" )
 #define BLOCK_REWARD  10000000000 // 100 KOIN
 #define TARGET_BLOCK_INTERVAL_MS 10000
-#define UPDATE_DIFFICULTY_DELTA_MS 60000
-#define BLOCK_AVERAGING_WINDOW   8640  // ~1 day of blocks
 #define DIFFICULTY_METADATA_KEY uint256_t( 0 )
 #define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
 #define CRYPTO_SHA2_256_ID uint64_t(0x12)
 #define POW_END_DATE 1640995199000 // 2021-12-31T23:59:59Z
+
+#define HC_HALFLIFE_MS      uint64_t(60*60*24*1000)
+#define FREE_RUN_SAT_MULT   2
+
+/**
+ * Diminishing returns bonus constant.
+ */
+#define DR_BONUS            uint64_t(0x1cd85d3da)
 
 uint256_t contract_id;
 
@@ -23,71 +29,69 @@ struct pow_signature_data
 
 KOINOS_REFLECT( pow_signature_data, (nonce)(recoverable_signature) )
 
-struct difficulty_metadata
+struct difficulty_metadata_v1
 {
-   uint256_t      difficulty_target = 0;
+   uint256_t      target = 0;
    timestamp_type last_block_time = timestamp_type( 0 );
    timestamp_type block_window_time = timestamp_type( 0 );
    uint32_t       averaging_window = 0;
 };
 
-KOINOS_REFLECT( difficulty_metadata,
-   (difficulty_target)
+KOINOS_REFLECT( difficulty_metadata_v1,
+   (target)
    (last_block_time)
    (block_window_time)
    (averaging_window)
 )
 
-difficulty_metadata get_difficulty_meta()
+struct difficulty_metadata_v2
 {
-   difficulty_metadata diff_meta;
-   system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
-   if ( diff_meta.difficulty_target == 0 )
+   uint256_t      target = 0;
+   timestamp_type last_block_time = timestamp_type( 0 );
+   uint256_t      difficulty = 0;
+   timestamp_type target_block_interval = timestamp_type( TARGET_BLOCK_INTERVAL_MS / 1000 );
+};
+
+KOINOS_REFLECT( difficulty_metadata_v2,
+   (target)
+   (last_block_time)
+   (difficulty)
+   (target_block_interval)
+)
+
+difficulty_metadata_v2 initialize_difficulty( const difficulty_metadata_v1& pow1_meta )
+{
+   difficulty_metadata_v2 diff_meta;
+   diff_meta.target = pow1_meta.target;
+   diff_meta.difficulty = std::numeric_limits< uint256_t >::max() / pow1_meta.target;
+   diff_meta.last_block_time = pow1_meta.last_block_time;
+
+   return diff_meta;
+}
+
+difficulty_metadata_v2 get_difficulty_meta()
+{
+   difficulty_metadata_v2 diff_meta;
+   auto diff_meta_vb = system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY );
+
+   if ( diff_meta_vb.size() == sizeof( difficulty_metadata_v2 ) )
    {
-      diff_meta.difficulty_target = std::numeric_limits< uint256_t >::max() >> 26;
+      diff_meta = pack::from_variable_blob< difficulty_metadata_v2 >( diff_meta_vb );
+   }
+   else
+   {
+      auto pow1_meta = pack::from_variable_blob< difficulty_metadata_v1 >( diff_meta_vb );
+      diff_meta = initialize_difficulty( pow1_meta );
    }
 
    return diff_meta;
 }
 
-void update_difficulty( difficulty_metadata diff_meta, timestamp_type current_block_time )
+void update_difficulty( difficulty_metadata_v2& diff_meta, timestamp_type current_block_time )
 {
-   if ( diff_meta.last_block_time )
-   {
-      if ( diff_meta.averaging_window >= BLOCK_AVERAGING_WINDOW )
-      {
-         // Decay block window time
-         diff_meta.block_window_time = diff_meta.block_window_time * (diff_meta.averaging_window - 1) / diff_meta.averaging_window;
-      }
-      else
-      {
-         diff_meta.averaging_window++;
-      }
-
-      diff_meta.block_window_time += current_block_time - diff_meta.last_block_time;
-
-      if ( current_block_time / UPDATE_DIFFICULTY_DELTA_MS > diff_meta.last_block_time / UPDATE_DIFFICULTY_DELTA_MS )
-      {
-         uint64_t average_block_interval = diff_meta.block_window_time / diff_meta.averaging_window;
-
-         if ( average_block_interval < TARGET_BLOCK_INTERVAL_MS )
-         {
-            auto block_time_diff = ( TARGET_BLOCK_INTERVAL_MS - average_block_interval );
-
-            // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.difficulty_target -= ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
-         }
-         else if ( average_block_interval > TARGET_BLOCK_INTERVAL_MS )
-         {
-            auto block_time_diff = ( average_block_interval - TARGET_BLOCK_INTERVAL_MS );
-
-            // This is a loss of precision, but it is a 256bit value, we should be fine
-            diff_meta.difficulty_target += ( diff_meta.difficulty_target / ( TARGET_BLOCK_INTERVAL_MS * 60 ) ) * block_time_diff;
-         }
-      }
-   }
-
+   diff_meta.difficulty = diff_meta.difficulty + diff_meta.difficulty / 2048 * std::max(1 - int64((current_block_time - diff_meta.last_block_time) / 7000), -99ll);
    diff_meta.last_block_time = current_block_time;
+   diff_meta.target = std::numeric_limits< uint256_t >::max() / diff_meta.difficulty;
 
    system::db_put_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
 }
@@ -106,6 +110,7 @@ int main()
    auto head_block_time = system::get_head_block_time();
    if ( head_block_time > POW_END_DATE )
    {
+      system::print( "testnet has ended" );
       system::set_contract_return( false );
       system::exit_contract( 0 );
    }
@@ -127,7 +132,7 @@ int main()
    // Get/update difficulty from database
    auto diff_meta = get_difficulty_meta();
 
-   if ( pow > diff_meta.difficulty_target )
+   if ( pow > diff_meta.target )
    {
       system::print( "pow did not meet target\n" );
       system::set_contract_return( false );
