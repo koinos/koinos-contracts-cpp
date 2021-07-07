@@ -2,8 +2,8 @@
 
 using namespace koinos;
 
-#define KOINOS_NAME     "Koinos"
-#define KOINOS_SYMBOL   "KOIN"
+#define KOINOS_NAME     "Test Koinos"
+#define KOINOS_SYMBOL   "tKOIN"
 #define KOINOS_DECIMALS 8
 
 #define SUPPLY_KEY uint64_t( 0 )
