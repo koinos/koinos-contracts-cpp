@@ -11,14 +11,6 @@ using namespace koinos;
 #define CRYPTO_SHA2_256_ID uint64_t(0x12)
 #define POW_END_DATE 1640995199000 // 2021-12-31T23:59:59Z
 
-#define HC_HALFLIFE_MS      uint64_t(60*60*24*1000)
-#define FREE_RUN_SAT_MULT   2
-
-/**
- * Diminishing returns bonus constant.
- */
-#define DR_BONUS            uint64_t(0x1cd85d3da)
-
 uint256_t contract_id;
 
 struct pow_signature_data
