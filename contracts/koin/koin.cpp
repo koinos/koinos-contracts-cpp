@@ -13,8 +13,7 @@ using namespace koinos::contracts;
 #define KOINOS_SYMBOL   "tKOIN"
 #define KOINOS_DECIMALS 8
 
-#define SUPPLY_KEY std::string( "" )
-
+std::string supply_key = "";
 std::string contract_db_space = "";
 
 constexpr std::size_t address_size = 25;
@@ -55,10 +54,10 @@ token::total_supply_return total_supply()
 {
    token::total_supply_return ret;
 
-   uint64_t supply = 0;
-   system::get_object( contract_db_space, SUPPLY_KEY, supply );
+   token::balance_object bal_obj;
+   system::get_object( contract_db_space, supply_key, bal_obj );
 
-   ret.mutable_value() = supply;
+   ret.mutable_value() = bal_obj.get_value();
    return ret;
 }
 
@@ -66,12 +65,12 @@ token::balance_of_return balance_of( const token::balance_of_args< address_size 
 {
    token::balance_of_return ret;
 
-   uint64_t balance = 0;
-
    std::string owner( reinterpret_cast< const char* >( args.get_owner().get_const() ), args.get_owner().get_length() );
-   system::get_object( contract_db_space, owner, balance );
 
-   ret.mutable_value() = balance;
+   token::balance_object bal_obj;
+   system::get_object( contract_db_space, owner, bal_obj );
+
+   ret.mutable_value() = bal_obj.get_value();
    return ret;
 }
 
@@ -100,8 +99,13 @@ token::transfer_return transfer( const token::transfer_args< address_size, addre
    ba_args.mutable_owner() = args.get_to();
    auto to_balance = balance_of( ba_args ).get_value() + value;
 
-   system::put_object( contract_db_space, from, from_balance );
-   system::put_object( contract_db_space, to, to_balance );
+   token::balance_object bal_obj;
+
+   bal_obj.mutable_value() = from_balance;
+   system::put_object( contract_db_space, from, bal_obj );
+
+   bal_obj.mutable_value() = to_balance;
+   system::put_object( contract_db_space, to, bal_obj );
 
    ret.mutable_value() = true;
    return ret;
@@ -135,8 +139,13 @@ token::mint_return mint( const token::mint_args< address_size >& args )
    ba_args.mutable_owner() = args.get_to();
    auto to_balance = balance_of( ba_args ).get_value() + amount;
 
-   system::put_object( contract_db_space, SUPPLY_KEY, new_supply );
-   system::put_object( contract_db_space, to, to_balance );
+   token::balance_object bal_obj;
+
+   bal_obj.mutable_value() = new_supply;
+   system::put_object( contract_db_space, supply_key, bal_obj );
+
+   bal_obj.mutable_value() = to_balance;
+   system::put_object( contract_db_space, to, bal_obj );
 
    ret.mutable_value() = true;
    return ret;
