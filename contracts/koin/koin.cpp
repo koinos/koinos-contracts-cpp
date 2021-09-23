@@ -9,14 +9,19 @@
 using namespace koinos;
 using namespace koinos::contracts;
 
-#define KOINOS_NAME     "Test Koinos"
-#define KOINOS_SYMBOL   "tKOIN"
-#define KOINOS_DECIMALS 8
+namespace constants {
 
-std::string supply_key = "";
-std::string contract_db_space = "";
+static const std::string koinos_name   = "Test Koinos";
+static const std::string koinos_symbol = "tKOIN";
+constexpr uint32_t koinos_decimals     = 8;
+constexpr std::size_t max_address_size = 25;
+constexpr std::size_t max_name_size    = 32;
+constexpr std::size_t max_symbol_size  = 8;
+constexpr std::size_t max_buffer_size  = 2048;
+std::string supply_key                 = "";
+std::string contract_space             = system::get_contract_id();
 
-constexpr std::size_t address_size = 25;
+} // constants
 
 enum entries : uint32_t
 {
@@ -29,24 +34,24 @@ enum entries : uint32_t
    mint_entry         = 0xc2f82bdc
 };
 
-token::name_return< 32 > name()
+token::name_return< constants::max_name_size > name()
 {
-   token::name_return< 32 > ret;
-   ret.mutable_value() = KOINOS_NAME;
+   token::name_return< constants::max_name_size > ret;
+   ret.mutable_value() = constants::koinos_name.c_str();
    return ret;
 }
 
-token::symbol_return< 8 > symbol()
+token::symbol_return< constants::max_symbol_size > symbol()
 {
-   token::symbol_return< 8 > ret;
-   ret.mutable_value() = KOINOS_SYMBOL;
+   token::symbol_return< constants::max_symbol_size > ret;
+   ret.mutable_value() = constants::koinos_symbol.c_str();
    return ret;
 }
 
 token::decimals_return decimals()
 {
    token::decimals_return ret;
-   ret.mutable_value() = KOINOS_DECIMALS;
+   ret.mutable_value() = constants::koinos_decimals;
    return ret;
 }
 
@@ -55,26 +60,26 @@ token::total_supply_return total_supply()
    token::total_supply_return ret;
 
    token::balance_object bal_obj;
-   system::get_object( contract_db_space, supply_key, bal_obj );
+   system::get_object( constants::contract_space, constants::supply_key, bal_obj );
 
    ret.mutable_value() = bal_obj.get_value();
    return ret;
 }
 
-token::balance_of_return balance_of( const token::balance_of_args< address_size >& args )
+token::balance_of_return balance_of( const token::balance_of_args< constants::max_address_size >& args )
 {
    token::balance_of_return ret;
 
    std::string owner( reinterpret_cast< const char* >( args.get_owner().get_const() ), args.get_owner().get_length() );
 
    token::balance_object bal_obj;
-   system::get_object( contract_db_space, owner, bal_obj );
+   system::get_object( constants::contract_space, owner, bal_obj );
 
    ret.mutable_value() = bal_obj.get_value();
    return ret;
 }
 
-token::transfer_return transfer( const token::transfer_args< address_size, address_size >& args )
+token::transfer_return transfer( const token::transfer_args< constants::max_address_size, constants::max_address_size >& args )
 {
    token::transfer_return ret;
 
@@ -84,7 +89,7 @@ token::transfer_return transfer( const token::transfer_args< address_size, addre
 
    system::require_authority( from );
 
-   token::balance_of_args< address_size > ba_args;
+   token::balance_of_args< constants::max_address_size > ba_args;
    ba_args.mutable_owner() = args.get_from();
    auto from_balance = balance_of( ba_args ).get_value();
 
@@ -102,16 +107,16 @@ token::transfer_return transfer( const token::transfer_args< address_size, addre
    token::balance_object bal_obj;
 
    bal_obj.mutable_value() = from_balance;
-   system::put_object( contract_db_space, from, bal_obj );
+   system::put_object( constants::contract_space, from, bal_obj );
 
    bal_obj.mutable_value() = to_balance;
-   system::put_object( contract_db_space, to, bal_obj );
+   system::put_object( constants::contract_space, to, bal_obj );
 
    ret.mutable_value() = true;
    return ret;
 }
 
-token::mint_return mint( const token::mint_args< address_size >& args )
+token::mint_return mint( const token::mint_args< constants::max_address_size >& args )
 {
    token::mint_return ret;
 
@@ -135,17 +140,17 @@ token::mint_return mint( const token::mint_args< address_size >& args )
       return ret;
    }
 
-   token::balance_of_args< address_size > ba_args;
+   token::balance_of_args< constants::max_address_size > ba_args;
    ba_args.mutable_owner() = args.get_to();
    auto to_balance = balance_of( ba_args ).get_value() + amount;
 
    token::balance_object bal_obj;
 
    bal_obj.mutable_value() = new_supply;
-   system::put_object( contract_db_space, supply_key, bal_obj );
+   system::put_object( constants::contract_space, constants::supply_key, bal_obj );
 
    bal_obj.mutable_value() = to_balance;
-   system::put_object( contract_db_space, to, bal_obj );
+   system::put_object( constants::contract_space, to, bal_obj );
 
    ret.mutable_value() = true;
    return ret;
@@ -155,70 +160,62 @@ int main()
 {
    auto entry_point = system::get_entry_point();
    auto args = system::get_contract_args();
-   contract_db_space = system::get_contract_id();
 
-   std::array< uint8_t, 2048 > retbuf;
+   std::array< uint8_t, constants::max_buffer_size > retbuf;
+
+   koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
+   koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
 
    switch( std::underlying_type_t< entries >( entry_point ) )
    {
       case entries::name_entry:
       {
          auto ret = name();
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::symbol_entry:
       {
          auto ret = symbol();
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::decimals_entry:
       {
          auto ret = decimals();
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::total_supply_entry:
       {
          auto ret = total_supply();
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::balance_of_entry:
       {
-         koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
-         token::balance_of_args< address_size > arg;
+         token::balance_of_args< constants::max_address_size > arg;
          arg.deserialize( rdbuf );
 
          auto ret = balance_of( arg );
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::transfer_entry:
       {
-         koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
-         token::transfer_args< address_size, address_size > arg;
+         token::transfer_args< constants::max_address_size, constants::max_address_size > arg;
          arg.deserialize( rdbuf );
 
          auto ret = transfer( arg );
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
       case entries::mint_entry:
       {
-         koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
-         token::mint_args< address_size > arg;
+         token::mint_args< constants::max_address_size > arg;
          arg.deserialize( rdbuf );
 
          auto ret = mint( arg );
-         koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
          ret.serialize( buffer );
          break;
       }
