@@ -72,17 +72,6 @@ void from_binary( const FieldBytes< MAX_LENGTH >& f, uint256_t& n, size_t start 
    }
 }
 
-void from_binary( const std::string& s, uint256_t& n, size_t start = 0 )
-{
-   assert( s.size() >= start + 32 );
-
-   for ( size_t i = start; i < start + 32; i++ )
-   {
-      n <<= 8;
-      n += s[i];
-   }
-}
-
 std::string to_hex( const std::string& s )
 {
    std::stringstream stream;
@@ -180,15 +169,12 @@ int main()
    std::string digest_str( const_cast< char* >( reinterpret_cast< const char* >( args.get_digest().get_const() ) ) + 2, args.get_digest().get_length() - 2 );
    nonce_str.insert( nonce_str.end(), digest_str.begin(), digest_str.end() );
 
-   uint256_t pow;
-   from_binary( system::hash( constants::sha256_id, nonce_str ), pow, 2 );
+   auto pow = system::hash( constants::sha256_id, nonce_str );
 
    // Get/update difficulty from database
    auto diff_meta = get_difficulty_meta();
-   uint256_t target;
-   from_binary( diff_meta.get_target(), target );
 
-   if ( pow > target )
+   if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
       system::print( "pow did not meet target\n" );
       ret.serialize( buffer );
