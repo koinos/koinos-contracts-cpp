@@ -6,6 +6,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <sstream>
+#include <vector>
 
 using namespace koinos;
 
@@ -21,6 +22,7 @@ namespace constants {
 
 constexpr std::size_t max_buffer_size         = 2048;
 constexpr std::size_t max_signature_size      = 65;
+constexpr std::size_t max_proof_size          = 128;
 const std::string contract_space              = system::get_contract_id();
 const std::string difficulty_metadata_key     = "";
 constexpr std::size_t target_block_interval_s = 10;
@@ -39,40 +41,13 @@ using verify_block_signature_args
    = koinos::chain::verify_block_signature_args<
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_active_data_size,
-      koinos::system::detail::max_hash_size >;
+      constants::max_proof_size >;
 
 using active_block_data
    = koinos::protocol::active_block_data<
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_hash_size,
       constants::max_signature_size >;
-
-
-template< uint32_t MAX_LENGTH >
-void to_binary( FieldBytes< MAX_LENGTH >& f, const uint256_t& n )
-{
-   static_assert( MAX_LENGTH >= 32 );
-   auto num = n;
-
-   // This is not optimal, consider using boost::mutliprecison::export_bits
-   for ( size_t i = 0; i < 32; i++ )
-   {
-      f[32 - i] = ( num % 256 ).convert_to< char >();
-      num >>= 8;
-   }
-}
-
-template< uint32_t MAX_LENGTH >
-void from_binary( const FieldBytes< MAX_LENGTH >& f, uint256_t& n, size_t start = 0 )
-{
-   assert( MAX_LENGTH >= start + 32 );
-
-   for ( size_t i = start; i < start + 32; i++ )
-   {
-      n <<= 8;
-      n += f[i];
-   }
-}
 
 std::string to_hex( const std::string& s )
 {
@@ -85,8 +60,37 @@ std::string to_hex( const std::string& s )
    return stream.str();
 }
 
+template< uint32_t MAX_LENGTH >
+void to_binary( FieldBytes< MAX_LENGTH >& f, const uint256_t& n )
+{
+   static_assert( MAX_LENGTH >= 32 );
+   std::vector< uint8_t > bin;
+   bin.reserve( 32 );
+   boost::multiprecision::export_bits( n, std::back_inserter( bin ), 8 );
 
-void initialize_difficulty( difficulty_metadata diff_meta )
+   std::size_t leading_zeros = 32 - bin.size();
+   for( std::size_t i = 0; i < leading_zeros; i++ )
+      f[i] = 0;
+   for( std::size_t i = 0; i < bin.size(); i++ )
+      f[i + leading_zeros] = bin[i];
+}
+
+template< uint32_t MAX_LENGTH >
+void from_binary( const FieldBytes< MAX_LENGTH >& f, uint256_t& n, size_t start = 0 )
+{
+   assert( MAX_LENGTH >= start + 32 );
+   std::vector< uint8_t > bin;
+
+   for ( size_t i = start; i < start + 32; i++ )
+   {
+      bin.push_back( f[i] );
+   }
+
+   boost::multiprecision::import_bits( n, bin.begin(), bin.end(), 8 );
+}
+
+
+void initialize_difficulty( difficulty_metadata& diff_meta )
 {
    uint256_t target = std::numeric_limits< uint256_t >::max() / (1 << 20);
    auto difficulty = 1 << 20;
@@ -103,6 +107,14 @@ difficulty_metadata get_difficulty_meta()
    {
       initialize_difficulty( diff_meta );
    }
+
+   std::string s;
+   s += "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) );
+   s += " last_block_time: " + std::to_string( diff_meta.last_block_time() );
+   s += " difficulty: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_difficulty().get_const() ), diff_meta.get_difficulty().get_length() ) );
+   s += " target_block_interval: " + std::to_string( diff_meta.target_block_interval() );
+
+   system::print( s + "\n" );
 
    return diff_meta;
 }
@@ -122,6 +134,7 @@ void update_difficulty( difficulty_metadata& diff_meta, uint64_t current_block_t
 
 int main()
 {
+   system::print( "get_entry_point()\n" );
    auto entry_point = system::get_entry_point();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
@@ -130,7 +143,7 @@ int main()
    if ( entry_point == std::underlying_type_t< entries >( entries::get_difficulty ) )
    {
       get_difficulty_meta().serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
       system::exit_contract( 0 );
    }
@@ -138,49 +151,85 @@ int main()
    koinos::chain::verify_block_signature_return ret;
    ret.mutable_value() = false;
 
+   system::print( "get_head_block_time()\n" );
    auto head_block_time = system::get_head_info().get_head_block_time();
    if ( uint64_t( head_block_time ) > constants::pow_end_date )
    {
       system::print( "testnet has ended" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
       system::exit_contract( 0 );
    }
 
+   system::print( "get_caller()\n" );
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
       system::print( "pow contract must be called from kernel" );\
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
       system::exit_contract( 0 );
    }
 
+   system::print( "get_contract_args()\n" );
    auto argstr = system::get_contract_args();
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
+   system::print( "deserialize verify_block_signature_args\n" );
    verify_block_signature_args args;
    args.deserialize( rdbuf );
 
+   std::string vbs;
+   vbs += "digest: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() ) );
+   vbs += " active: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_active().get_const() ), args.get_active().get_length() ) );
+   vbs += " signature_data: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_signature_data().get_const() ), args.get_signature_data().get_length() ) );
+
+   system::print( vbs + '\n' );
+
+   system::print( "deserialize pow_signature_data\n" );
    pow_signature_data sig_data;
-   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature_data().get_const() ) ), args.get_signature_data().get_length());
+   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature_data().get_const() ) ), args.get_signature_data().get_length() );
    sig_data.deserialize( rdbuf );
 
    std::string nonce_str( reinterpret_cast< const char* >( sig_data.get_nonce().get_const() ), sig_data.get_nonce().get_length() );
+   system::print( "nonce_str: " + to_hex( nonce_str ) + '\n' );
+
    std::string digest_str( const_cast< char* >( reinterpret_cast< const char* >( args.get_digest().get_const() ) ) + 2, args.get_digest().get_length() - 2 );
    nonce_str.insert( nonce_str.end(), digest_str.begin(), digest_str.end() );
 
+
+   system::print( "digest_str: " + to_hex( digest_str ) + '\n' );
+
+   system::print( "to_hash: " + to_hex( nonce_str ) + '\n' );
+
+   system::print( "hash()\n" );
    auto pow = system::hash( constants::sha256_id, nonce_str );
 
    // Get/update difficulty from database
    auto diff_meta = get_difficulty_meta();
 
+   system::print( "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) ) + '\n' );
+
+   std::string s;
+   s += "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) );
+   s += " last_block_time: " + std::to_string( diff_meta.last_block_time() );
+   s += " difficulty: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_difficulty().get_const() ), diff_meta.get_difficulty().get_length() ) );
+   s += " target_block_interval: " + std::to_string( diff_meta.target_block_interval() );
+
+   system::print( s + "\n" );
+
+   auto pow_hex = to_hex( pow );
+   //system::print( "pow: " + to_hex( pow ) + '\n' );
+   //std::string target( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() );
+   system::print( "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) ) + '\n' );
+   system::print( "pow: " + pow_hex + '\n' );
+
    if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
       system::print( "pow did not meet target\n" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
       system::exit_contract( 0 );
    }
@@ -189,6 +238,9 @@ int main()
 
    // Recover address from signature
    std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
+   digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
+   //system::print( "sig_str: " + to_hex( sig_str ) );
+   //system::print( "digest_str: " + to_hex( digest_str ) );
    auto producer = system::recover_public_key( sig_str, digest_str );
 
    active_block_data active;
@@ -201,7 +253,7 @@ int main()
    {
       system::print( "signature and signer are mismatching\n" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
       system::exit_contract( 0 );
    }
@@ -213,12 +265,15 @@ int main()
    if ( !success )
    {
       system::print( "could not mint KOIN to producer address " + to_hex( producer ) + '\n' );
+   } else {
+      system::print( "success!" );
    }
 
-   ret.set_value( false );
+   ret.set_value( success );
 
-   std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
    ret.serialize( buffer );
+   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+
    system::set_contract_return_bytes( retval );
    system::exit_contract( 0 );
 
