@@ -5,7 +5,6 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 
-#include <sstream>
 #include <vector>
 
 using namespace koinos;
@@ -48,17 +47,6 @@ using active_block_data
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_hash_size,
       constants::max_signature_size >;
-
-std::string to_hex( const std::string& s )
-{
-   std::stringstream stream;
-   stream << "0x" << std::hex << std::setfill( '0' );
-   for ( const auto& c : s )
-   {
-      stream << std::setw( 2 ) << static_cast< unsigned int >( static_cast< unsigned char >( c ) );
-   }
-   return stream.str();
-}
 
 template< uint32_t MAX_LENGTH >
 void to_binary( FieldBytes< MAX_LENGTH >& f, const uint256_t& n )
@@ -108,14 +96,6 @@ difficulty_metadata get_difficulty_meta()
       initialize_difficulty( diff_meta );
    }
 
-   std::string s;
-   s += "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) );
-   s += " last_block_time: " + std::to_string( diff_meta.last_block_time() );
-   s += " difficulty: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_difficulty().get_const() ), diff_meta.get_difficulty().get_length() ) );
-   s += " target_block_interval: " + std::to_string( diff_meta.target_block_interval() );
-
-   system::print( s + "\n" );
-
    return diff_meta;
 }
 
@@ -134,7 +114,6 @@ void update_difficulty( difficulty_metadata& diff_meta, uint64_t current_block_t
 
 int main()
 {
-   system::print( "get_entry_point()\n" );
    auto entry_point = system::get_entry_point();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
@@ -145,13 +124,12 @@ int main()
       get_difficulty_meta().serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
-      system::exit_contract( 0 );
+      return 0;
    }
 
    koinos::chain::verify_block_signature_return ret;
    ret.mutable_value() = false;
 
-   system::print( "get_head_block_time()\n" );
    auto head_block_time = system::get_head_info().get_head_block_time();
    if ( uint64_t( head_block_time ) > constants::pow_end_date )
    {
@@ -159,10 +137,9 @@ int main()
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
-      system::exit_contract( 0 );
+      return 0;
    }
 
-   system::print( "get_caller()\n" );
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
@@ -170,60 +147,26 @@ int main()
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
-      system::exit_contract( 0 );
+      return 0;
    }
 
-   system::print( "get_contract_args()\n" );
    auto argstr = system::get_contract_args();
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
-   system::print( "deserialize verify_block_signature_args\n" );
    verify_block_signature_args args;
    args.deserialize( rdbuf );
 
-   std::string vbs;
-   vbs += "digest: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() ) );
-   vbs += " active: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_active().get_const() ), args.get_active().get_length() ) );
-   vbs += " signature_data: " + to_hex( std::string( reinterpret_cast< const char* >( args.get_signature_data().get_const() ), args.get_signature_data().get_length() ) );
-
-   system::print( vbs + '\n' );
-
-   system::print( "deserialize pow_signature_data\n" );
    pow_signature_data sig_data;
    rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature_data().get_const() ) ), args.get_signature_data().get_length() );
    sig_data.deserialize( rdbuf );
 
    std::string nonce_str( reinterpret_cast< const char* >( sig_data.get_nonce().get_const() ), sig_data.get_nonce().get_length() );
-   system::print( "nonce_str: " + to_hex( nonce_str ) + '\n' );
-
    std::string digest_str( const_cast< char* >( reinterpret_cast< const char* >( args.get_digest().get_const() ) ) + 2, args.get_digest().get_length() - 2 );
    nonce_str.insert( nonce_str.end(), digest_str.begin(), digest_str.end() );
 
-
-   system::print( "digest_str: " + to_hex( digest_str ) + '\n' );
-
-   system::print( "to_hash: " + to_hex( nonce_str ) + '\n' );
-
-   system::print( "hash()\n" );
    auto pow = system::hash( constants::sha256_id, nonce_str );
 
    // Get/update difficulty from database
    auto diff_meta = get_difficulty_meta();
-
-   system::print( "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) ) + '\n' );
-
-   std::string s;
-   s += "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) );
-   s += " last_block_time: " + std::to_string( diff_meta.last_block_time() );
-   s += " difficulty: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_difficulty().get_const() ), diff_meta.get_difficulty().get_length() ) );
-   s += " target_block_interval: " + std::to_string( diff_meta.target_block_interval() );
-
-   system::print( s + "\n" );
-
-   auto pow_hex = to_hex( pow );
-   //system::print( "pow: " + to_hex( pow ) + '\n' );
-   //std::string target( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() );
-   system::print( "target: " + to_hex( std::string( reinterpret_cast< const char* >( diff_meta.get_target().get_const() ), diff_meta.get_target().get_length() ) ) + '\n' );
-   system::print( "pow: " + pow_hex + '\n' );
 
    if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
@@ -231,7 +174,7 @@ int main()
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
-      system::exit_contract( 0 );
+      return 0;
    }
 
    update_difficulty( diff_meta, head_block_time );
@@ -239,8 +182,6 @@ int main()
    // Recover address from signature
    std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
    digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
-   //system::print( "sig_str: " + to_hex( sig_str ) );
-   //system::print( "digest_str: " + to_hex( digest_str ) );
    auto producer = system::recover_public_key( sig_str, digest_str );
 
    active_block_data active;
@@ -255,7 +196,7 @@ int main()
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_return_bytes( retval );
-      system::exit_contract( 0 );
+      return 0;
    }
 
    // Mint block reward to address
@@ -264,9 +205,7 @@ int main()
    auto success = koin_token.mint( signer, constants::block_reward );
    if ( !success )
    {
-      system::print( "could not mint KOIN to producer address " + to_hex( producer ) + '\n' );
-   } else {
-      system::print( "success!" );
+      system::print( "could not mint KOIN to producer address " );
    }
 
    ret.set_value( success );
@@ -275,7 +214,6 @@ int main()
    std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
 
    system::set_contract_return_bytes( retval );
-   system::exit_contract( 0 );
 
    return 0;
 }
