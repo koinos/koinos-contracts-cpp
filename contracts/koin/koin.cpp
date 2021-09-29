@@ -223,7 +223,7 @@ int main()
          system::exit_contract( 1 );
    }
 
-   std::string retval( reinterpret_cast< const char* >( retbuf.data() ), retbuf.size() );
+   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
    system::set_contract_return_bytes( retval );
 
    system::exit_contract( 0 );
