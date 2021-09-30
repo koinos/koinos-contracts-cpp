@@ -1,162 +1,220 @@
 #include <koinos/system/system_calls.hpp>
 #include <koinos/token.hpp>
 
+#include <koinos/contracts/pow/pow.h>
+
+#include <boost/multiprecision/cpp_int.hpp>
+
+#include <vector>
+
 using namespace koinos;
 
-#define KOIN_CONTRACT uint160_t( "0x930f7a991f8787bd485b02684ffda52570439794" )
-#define BLOCK_REWARD  10000000000 // 100 KOIN
-#define TARGET_BLOCK_INTERVAL_MS 10000
-#define DIFFICULTY_METADATA_KEY uint256_t( 0 )
-#define GET_DIFFICULTY_ENTRYPOINT 0x4a758831
-#define CRYPTO_SHA2_256_ID uint64_t(0x12)
-#define POW_END_DATE 1640995199000 // 2021-12-31T23:59:59Z
+using uint256_t = boost::multiprecision::uint256_t;
+using EmbeddedProto::FieldBytes;
 
-uint256_t contract_id;
-
-struct pow_signature_data
+enum class entries : uint32_t
 {
-   uint256_t        nonce;
-   fixed_blob< 65 > recoverable_signature;
+   get_difficulty = 0x4a758831,
 };
 
-KOINOS_REFLECT( pow_signature_data, (nonce)(recoverable_signature) )
+namespace constants {
 
-struct difficulty_metadata_v1
+constexpr std::size_t max_buffer_size         = 2048;
+constexpr std::size_t max_signature_size      = 65;
+constexpr std::size_t max_proof_size          = 128;
+const std::string contract_space              = system::get_contract_id();
+const std::string difficulty_metadata_key     = "";
+constexpr std::size_t target_block_interval_s = 10;
+constexpr uint64_t sha256_id                  = 0x12;
+constexpr uint64_t pow_end_date               = 1640995199000; // 2021-12-31T23:59:59Z
+constexpr uint64_t block_reward               = 10000000000;
+constexpr uint32_t initial_difficulty_bits    = 26;
+
+// 0xd32014064fcc2e8d11440e1eab7fa8ff7ed14a60bd3424
+const std::string koin_contract               = "\xd3\x20\x14\x06\x4f\xcc\x2e\x8d\x11\x44\x0e\x1e\xab\x7f\xa8\xff\x7e\xd1\x4a\x60\xbd\x34\x24";
+
+} // constants
+
+using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
+using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
+using verify_block_signature_args
+   = koinos::chain::verify_block_signature_args<
+      koinos::system::detail::max_hash_size,
+      koinos::system::detail::max_active_data_size,
+      constants::max_proof_size >;
+
+using active_block_data
+   = koinos::protocol::active_block_data<
+      koinos::system::detail::max_hash_size,
+      koinos::system::detail::max_hash_size,
+      constants::max_signature_size >;
+
+template< uint32_t MAX_LENGTH >
+void to_binary( FieldBytes< MAX_LENGTH >& f, const uint256_t& n )
 {
-   uint256_t      target = 0;
-   timestamp_type last_block_time = timestamp_type( 0 );
-   timestamp_type block_window_time = timestamp_type( 0 );
-   uint32_t       averaging_window = 0;
-};
+   static_assert( MAX_LENGTH >= 32 );
+   std::vector< uint8_t > bin;
+   bin.reserve( 32 );
+   boost::multiprecision::export_bits( n, std::back_inserter( bin ), 8 );
 
-KOINOS_REFLECT( difficulty_metadata_v1,
-   (target)
-   (last_block_time)
-   (block_window_time)
-   (averaging_window)
-)
+   std::size_t leading_zeros = 32 - bin.size();
+   for( std::size_t i = 0; i < leading_zeros; i++ )
+      f[i] = 0;
+   for( std::size_t i = 0; i < bin.size(); i++ )
+      f[i + leading_zeros] = bin[i];
+}
 
-struct difficulty_metadata_v2
+template< uint32_t MAX_LENGTH >
+void from_binary( const FieldBytes< MAX_LENGTH >& f, uint256_t& n, size_t start = 0 )
 {
-   uint256_t      target = 0;
-   timestamp_type last_block_time = timestamp_type( 0 );
-   uint256_t      difficulty = 0;
-   timestamp_type target_block_interval = timestamp_type( TARGET_BLOCK_INTERVAL_MS / 1000 );
-};
+   assert( MAX_LENGTH >= start + 32 );
+   std::vector< uint8_t > bin;
 
-KOINOS_REFLECT( difficulty_metadata_v2,
-   (target)
-   (last_block_time)
-   (difficulty)
-   (target_block_interval)
-)
+   for ( size_t i = start; i < start + 32; i++ )
+   {
+      bin.push_back( f[i] );
+   }
 
-difficulty_metadata_v2 initialize_difficulty( const difficulty_metadata_v1& pow1_meta )
+   boost::multiprecision::import_bits( n, bin.begin(), bin.end(), 8 );
+}
+
+
+void initialize_difficulty( difficulty_metadata& diff_meta )
 {
-   difficulty_metadata_v2 diff_meta;
-   diff_meta.target = pow1_meta.target;
-   diff_meta.difficulty = std::numeric_limits< uint256_t >::max() / pow1_meta.target;
-   diff_meta.last_block_time = pow1_meta.last_block_time;
+   uint256_t target = std::numeric_limits< uint256_t >::max() / (1 << constants::initial_difficulty_bits);
+   auto difficulty = 1 << constants::initial_difficulty_bits;
+   to_binary( diff_meta.mutable_target(), target );
+   diff_meta.set_last_block_time( system::get_head_info().get_head_block_time() );
+   to_binary( diff_meta.mutable_difficulty(), difficulty );
+   diff_meta.set_target_block_interval( constants::target_block_interval_s );
+}
+
+difficulty_metadata get_difficulty_meta()
+{
+   difficulty_metadata diff_meta;
+   if ( !system::get_object( constants::contract_space, constants::difficulty_metadata_key, diff_meta ) )
+   {
+      initialize_difficulty( diff_meta );
+   }
 
    return diff_meta;
 }
 
-difficulty_metadata_v2 get_difficulty_meta()
+void update_difficulty( difficulty_metadata& diff_meta, uint64_t current_block_time )
 {
-   difficulty_metadata_v2 diff_meta;
-   auto diff_meta_vb = system::db_get_object( contract_id, DIFFICULTY_METADATA_KEY );
+   uint256_t difficulty;
+   from_binary( diff_meta.get_difficulty(), difficulty );
+   difficulty = difficulty + difficulty / 2048 * std::max(1 - int64_t((current_block_time - diff_meta.last_block_time()) / 7000), -99ll);
+   to_binary( diff_meta.mutable_difficulty(), difficulty );
+   diff_meta.set_last_block_time( current_block_time );
+   auto target = std::numeric_limits< uint256_t >::max() / difficulty;
+   to_binary( diff_meta.mutable_target(), target );
 
-   if ( diff_meta_vb.size() == sizeof( difficulty_metadata_v2 ) )
-   {
-      diff_meta = pack::from_variable_blob< difficulty_metadata_v2 >( diff_meta_vb );
-   }
-   else
-   {
-      auto pow1_meta = pack::from_variable_blob< difficulty_metadata_v1 >( diff_meta_vb );
-      diff_meta = initialize_difficulty( pow1_meta );
-   }
-
-   return diff_meta;
-}
-
-void update_difficulty( difficulty_metadata_v2& diff_meta, timestamp_type current_block_time )
-{
-   diff_meta.difficulty = diff_meta.difficulty + diff_meta.difficulty / 2048 * std::max(1 - int64((current_block_time - diff_meta.last_block_time) / 7000), -99ll);
-   diff_meta.last_block_time = current_block_time;
-   diff_meta.target = std::numeric_limits< uint256_t >::max() / diff_meta.difficulty;
-
-   system::db_put_object( contract_id, DIFFICULTY_METADATA_KEY, diff_meta );
+   system::put_object( constants::contract_space, constants::difficulty_metadata_key, diff_meta );
 }
 
 int main()
 {
    auto entry_point = system::get_entry_point();
-   contract_id = pack::from_variable_blob< uint160_t >( pack::to_variable_blob( system::get_contract_id() ) );
 
-   if ( entry_point == GET_DIFFICULTY_ENTRYPOINT )
+   std::array< uint8_t, constants::max_buffer_size > retbuf;
+   koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
+
+   if ( entry_point == std::underlying_type_t< entries >( entries::get_difficulty ) )
    {
-      system::set_contract_return( get_difficulty_meta() );
-      system::exit_contract( 0 );
+      get_difficulty_meta().serialize( buffer );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+      system::set_contract_return_bytes( retval );
+      return 0;
    }
 
-   auto head_block_time = system::get_head_block_time();
-   if ( head_block_time > POW_END_DATE )
+   koinos::chain::verify_block_signature_return ret;
+   ret.mutable_value() = false;
+
+   auto head_block_time = system::get_head_info().get_head_block_time();
+   if ( uint64_t( head_block_time ) > constants::pow_end_date )
    {
       system::print( "testnet has ended" );
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
+      ret.serialize( buffer );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+      system::set_contract_return_bytes( retval );
+      return 0;
    }
 
-   if ( system::get_caller().caller_privilege != chain::privilege::kernel_mode )
+   const auto [ caller, privilege ] = system::get_caller();
+   if ( privilege != chain::privilege::kernel_mode )
    {
-      system::print( "pow contract must be called from kernel" );
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
+      system::print( "pow contract must be called from kernel" );\
+      ret.serialize( buffer );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+      system::set_contract_return_bytes( retval );
+      return 0;
    }
 
-   auto args = system::get_contract_args< chain::verify_block_signature_args >();
-   auto signature_data = pack::from_variable_blob< pow_signature_data >( args.signature_data );
-   auto to_hash = pack::to_variable_blob( signature_data.nonce );
-   to_hash.insert( to_hash.end(), args.digest.digest.begin(), args.digest.digest.end() );
+   auto argstr = system::get_contract_args();
+   koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
+   verify_block_signature_args args;
+   args.deserialize( rdbuf );
 
-   auto pow = pack::from_variable_blob< uint256_t >( system::hash( CRYPTO_SHA2_256_ID, to_hash ).digest );
+   pow_signature_data sig_data;
+   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature_data().get_const() ) ), args.get_signature_data().get_length() );
+   sig_data.deserialize( rdbuf );
+
+   std::string nonce_str( reinterpret_cast< const char* >( sig_data.get_nonce().get_const() ), sig_data.get_nonce().get_length() );
+   std::string digest_str( const_cast< char* >( reinterpret_cast< const char* >( args.get_digest().get_const() ) ) + 2, args.get_digest().get_length() - 2 );
+   nonce_str.insert( nonce_str.end(), digest_str.begin(), digest_str.end() );
+
+   auto pow = system::hash( constants::sha256_id, nonce_str );
 
    // Get/update difficulty from database
    auto diff_meta = get_difficulty_meta();
 
-   if ( pow > diff_meta.target )
+   if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
       system::print( "pow did not meet target\n" );
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
+      ret.serialize( buffer );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+      system::set_contract_return_bytes( retval );
+      return 0;
    }
 
    update_difficulty( diff_meta, head_block_time );
 
    // Recover address from signature
-   auto producer = system::recover_public_key( pack::to_variable_blob( signature_data.recoverable_signature ), args.digest );
+   std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
+   digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
+   auto producer = system::recover_public_key( sig_str, digest_str );
 
-   args.active_data.unbox();
-   auto signer = args.active_data.get_const_native().signer;
+   active_block_data active;
+   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_active().get_const() ) ), args.get_active().get_length() );
+   active.deserialize( rdbuf );
+
+   std::string signer( reinterpret_cast< const char* >( active.get_signer().get_const() ), active.get_signer().get_length() );
 
    if ( producer != signer )
    {
       system::print( "signature and signer are mismatching\n" );
-      system::set_contract_return( false );
-      system::exit_contract( 0 );
+      ret.serialize( buffer );
+      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+      system::set_contract_return_bytes( retval );
+      return 0;
    }
 
    // Mint block reward to address
-   auto koin_token = koinos::token( KOIN_CONTRACT );
+   auto koin_token = koinos::token( constants::koin_contract );
 
-   auto success = koin_token.mint( signer, BLOCK_REWARD );
+   auto success = koin_token.mint( signer, constants::block_reward );
    if ( !success )
    {
-      system::print( "could not mint KOIN to producer address " + std::string( producer.data(), producer.size() ) + '\n' );
+      system::print( "could not mint KOIN to producer address " );
    }
 
-   system::set_contract_return( success );
-   system::exit_contract( 0 );
+   ret.set_value( success );
+
+   ret.serialize( buffer );
+   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
+
+   system::set_contract_return_bytes( retval );
 
    return 0;
 }
