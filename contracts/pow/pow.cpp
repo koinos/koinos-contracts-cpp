@@ -28,6 +28,7 @@ constexpr std::size_t target_block_interval_s = 10;
 constexpr uint64_t sha256_id                  = 0x12;
 constexpr uint64_t pow_end_date               = 1640995199000; // 2021-12-31T23:59:59Z
 constexpr uint64_t block_reward               = 10000000000;
+constexpr uint32_t initial_difficulty_bits    = 26;
 
 // 0xd32014064fcc2e8d11440e1eab7fa8ff7ed14a60bd3424
 const std::string koin_contract               = "\xd3\x20\x14\x06\x4f\xcc\x2e\x8d\x11\x44\x0e\x1e\xab\x7f\xa8\xff\x7e\xd1\x4a\x60\xbd\x34\x24";
@@ -80,8 +81,8 @@ void from_binary( const FieldBytes< MAX_LENGTH >& f, uint256_t& n, size_t start 
 
 void initialize_difficulty( difficulty_metadata& diff_meta )
 {
-   uint256_t target = std::numeric_limits< uint256_t >::max() / (1 << 20);
-   auto difficulty = 1 << 20;
+   uint256_t target = std::numeric_limits< uint256_t >::max() / (1 << constants::initial_difficulty_bits);
+   auto difficulty = 1 << constants::initial_difficulty_bits;
    to_binary( diff_meta.mutable_target(), target );
    diff_meta.set_last_block_time( system::get_head_info().get_head_block_time() );
    to_binary( diff_meta.mutable_difficulty(), difficulty );
