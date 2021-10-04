@@ -37,8 +37,8 @@ const std::string koin_contract               = "\xd3\x20\x14\x06\x4f\xcc\x2e\x8
 
 using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
 using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
-using verify_block_signature_args
-   = koinos::chain::verify_block_signature_args<
+using verify_block_signature_arguments
+   = koinos::chain::verify_block_signature_arguments<
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_active_data_size,
       constants::max_proof_size >;
@@ -124,11 +124,11 @@ int main()
    {
       get_difficulty_meta().serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_return_bytes( retval );
+      system::set_contract_result_bytes( retval );
       return 0;
    }
 
-   koinos::chain::verify_block_signature_return ret;
+   koinos::chain::verify_block_signature_result ret;
    ret.mutable_value() = false;
 
    auto head_block_time = system::get_head_info().get_head_block_time();
@@ -137,7 +137,7 @@ int main()
       system::print( "testnet has ended" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_return_bytes( retval );
+      system::set_contract_result_bytes( retval );
       return 0;
    }
 
@@ -147,13 +147,13 @@ int main()
       system::print( "pow contract must be called from kernel" );\
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_return_bytes( retval );
+      system::set_contract_result_bytes( retval );
       return 0;
    }
 
-   auto argstr = system::get_contract_args();
+   auto argstr = system::get_contract_arguments();
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
-   verify_block_signature_args args;
+   verify_block_signature_arguments args;
    args.deserialize( rdbuf );
 
    pow_signature_data sig_data;
@@ -174,7 +174,7 @@ int main()
       system::print( "pow did not meet target\n" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_return_bytes( retval );
+      system::set_contract_result_bytes( retval );
       return 0;
    }
 
@@ -196,7 +196,7 @@ int main()
       system::print( "signature and signer are mismatching\n" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_return_bytes( retval );
+      system::set_contract_result_bytes( retval );
       return 0;
    }
 
@@ -214,7 +214,7 @@ int main()
    ret.serialize( buffer );
    std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
 
-   system::set_contract_return_bytes( retval );
+   system::set_contract_result_bytes( retval );
 
    return 0;
 }
