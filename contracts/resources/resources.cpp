@@ -8,7 +8,6 @@ using namespace koinos;
 using namespace koinos::contracts::resources;
 
 using int128_t = boost::multiprecision::int128_t;
-using EmbeddedProto::FieldBytes;
 
 enum entries : uint32_t
 {
@@ -35,11 +34,14 @@ constexpr uint64_t compute_budget_per_block       = 1'000'000;
 constexpr uint64_t max_compute_per_block          = 10'000'000;
 
 // Exponential decay constant for 1 month half life
-constexpr uint64_t decay_constant                 = 18446694743881045523ull;
+// Constant is ( -ln(2) * num_blocks ) * 2^64
+// constexpr uint64_t decay_constant                 = 18446694743881045523ull;
+
+// Exponential decay constant for 1 week half life
+constexpr uint64_t decay_constant                 = 18446532661087609961ull;
 
 } // constants
 
-using get_resource_limits_arguments     = chain::get_resource_limits_arguments;
 using get_resource_limits_result        = chain::get_resource_limits_result;
 using consume_block_resources_arguments = chain::consume_block_resources_arguments;
 using consume_block_resources_result    = chain::consume_block_resources_result;
