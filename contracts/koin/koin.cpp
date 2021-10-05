@@ -30,14 +30,88 @@ std::string contract_space             = system::get_contract_id();
 
 enum entries : uint32_t
 {
-   name_entry         = 0x76ea4297,
-   symbol_entry       = 0x7e794b24,
-   decimals_entry     = 0x59dc15ce,
-   total_supply_entry = 0xcf2e8212,
-   balance_of_entry   = 0x15619248,
-   transfer_entry     = 0x62efa292,
-   mint_entry         = 0xc2f82bdc
+   get_account_rc_entry     = 0,
+   consume_account_rc_entry = 1,
+   name_entry               = 0x76ea4297,
+   symbol_entry             = 0x7e794b24,
+   decimals_entry           = 0x59dc15ce,
+   total_supply_entry       = 0xcf2e8212,
+   balance_of_entry         = 0x15619248,
+   transfer_entry           = 0x62efa292,
+   mint_entry               = 0xc2f82bdc
 };
+
+using get_account_rc_arguments
+   = chain::get_account_rc_arguments<
+      constants::max_name_size
+   >;
+
+using consume_account_rc_arguments
+   = chain::consume_account_rc_arguments<
+      constants::max_name_size
+   >;
+
+void regenerate_mana( token::mana_balance_object& bal )
+{
+   auto head_block_time = system::get_head_info().head_block_time();
+   auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time );
+   if ( delta )
+   {
+      auto new_mana = bal.mana() + ( ( int128_t( delta ) * int128_t( bal.balance() ) ) / constants::mana_regen_time ).convert_to< uint64_t >() ;
+      bal.set_mana( std::min( new_mana, bal.mana() ) );
+      bal.set_last_mana_update( head_block_time );
+   }
+}
+
+chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& args )
+{
+   std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   token::mana_balance_object bal_obj;
+   system::get_object( constants::contract_space, owner, bal_obj );
+
+   regenerate_mana( bal_obj );
+
+   chain::get_account_rc_result res;
+   res.set_value( bal_obj.get_mana() );
+   return res;
+}
+
+chain::consume_account_rc_result consume_account_rc( const consume_account_rc_arguments& args )
+{
+   chain::consume_account_rc_result res;
+   res.set_value( false );
+
+   const auto [caller, privilege] = system::get_caller();
+   if ( privilege != chain::privilege::kernel_mode )
+   {
+      system::print( "consume_account_rc must be called from kernel context" );
+      return res;
+   }
+
+   std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   token::mana_balance_object bal_obj;
+   system::get_object( constants::contract_space, owner, bal_obj );
+
+   regenerate_mana( bal_obj );
+
+   // Assumes mana cannot go negative...
+   if ( bal_obj.mana() < args.value() )
+   {
+      system::print( "account has insufficient mana for consumption" );
+      return res;
+   }
+
+   bal_obj.set_mana( bal_obj.mana() - args.value() );
+
+   if ( !system::put_object( constants::contract_space, owner, bal_obj ) )
+   {
+      system::print( "could not write 'account' mana balance" );
+      return res;
+   }
+
+   res.set_value( true );
+   return res;
+}
 
 token::name_result< constants::max_name_size > name()
 {
@@ -82,18 +156,6 @@ token::balance_of_result balance_of( const token::balance_of_arguments< constant
 
    res.set_value( bal_obj.get_balance() );
    return res;
-}
-
-void regenerate_mana( token::mana_balance_object& bal )
-{
-   auto head_block_time = system::get_head_info().head_block_time();
-   auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time );
-   if ( delta )
-   {
-      auto new_mana = bal.mana() + ( ( int128_t( delta ) * int128_t( bal.balance() ) ) / constants::mana_regen_time ).convert_to< uint64_t >() ;
-      bal.set_mana( std::min( new_mana, bal.mana() ) );
-      bal.set_last_mana_update( head_block_time );
-   }
 }
 
 token::transfer_result transfer( const token::transfer_arguments< constants::max_address_size, constants::max_address_size >& args )
@@ -218,6 +280,24 @@ int main()
 
    switch( std::underlying_type_t< entries >( entry_point ) )
    {
+      case entries::get_account_rc_entry:
+      {
+         get_account_rc_arguments arg;
+         arg.deserialize( rdbuf );
+
+         auto res = get_account_rc( arg );
+         res.serialize( buffer );
+         break;
+      }
+      case entries::consume_account_rc_entry:
+      {
+         consume_account_rc_arguments arg;
+         arg.deserialize( rdbuf );
+
+         auto res = consume_account_rc( arg );
+         res.serialize( buffer );
+         break;
+      }
       case entries::name_entry:
       {
          auto res = name();
