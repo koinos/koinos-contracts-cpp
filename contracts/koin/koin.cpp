@@ -4,16 +4,21 @@
 #include <koinos/buffer.hpp>
 #include <koinos/common.h>
 
+#include <boost/multiprecision/cpp_int.hpp>
+
 #include <string>
 
 using namespace koinos;
 using namespace koinos::contracts;
+
+using int128_t = boost::multiprecision::int128_t;
 
 namespace constants {
 
 static const std::string koinos_name   = "Test Koinos";
 static const std::string koinos_symbol = "tKOIN";
 constexpr uint32_t koinos_decimals     = 8;
+constexpr uint64_t mana_regen_time     = 432'000; // 5 days
 constexpr std::size_t max_address_size = 25;
 constexpr std::size_t max_name_size    = 32;
 constexpr std::size_t max_symbol_size  = 8;
@@ -25,14 +30,88 @@ std::string contract_space             = system::get_contract_id();
 
 enum entries : uint32_t
 {
-   name_entry         = 0x76ea4297,
-   symbol_entry       = 0x7e794b24,
-   decimals_entry     = 0x59dc15ce,
-   total_supply_entry = 0xcf2e8212,
-   balance_of_entry   = 0x15619248,
-   transfer_entry     = 0x62efa292,
-   mint_entry         = 0xc2f82bdc
+   get_account_rc_entry     = 0,
+   consume_account_rc_entry = 1,
+   name_entry               = 0x76ea4297,
+   symbol_entry             = 0x7e794b24,
+   decimals_entry           = 0x59dc15ce,
+   total_supply_entry       = 0xcf2e8212,
+   balance_of_entry         = 0x15619248,
+   transfer_entry           = 0x62efa292,
+   mint_entry               = 0xc2f82bdc
 };
+
+using get_account_rc_arguments
+   = chain::get_account_rc_arguments<
+      constants::max_name_size
+   >;
+
+using consume_account_rc_arguments
+   = chain::consume_account_rc_arguments<
+      constants::max_name_size
+   >;
+
+void regenerate_mana( token::mana_balance_object& bal )
+{
+   auto head_block_time = system::get_head_info().head_block_time();
+   auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time );
+   if ( delta )
+   {
+      auto new_mana = bal.mana() + ( ( int128_t( delta ) * int128_t( bal.balance() ) ) / constants::mana_regen_time ).convert_to< uint64_t >() ;
+      bal.set_mana( std::min( new_mana, bal.mana() ) );
+      bal.set_last_mana_update( head_block_time );
+   }
+}
+
+chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& args )
+{
+   std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   token::mana_balance_object bal_obj;
+   system::get_object( constants::contract_space, owner, bal_obj );
+
+   regenerate_mana( bal_obj );
+
+   chain::get_account_rc_result res;
+   res.set_value( bal_obj.get_mana() );
+   return res;
+}
+
+chain::consume_account_rc_result consume_account_rc( const consume_account_rc_arguments& args )
+{
+   chain::consume_account_rc_result res;
+   res.set_value( false );
+
+   const auto [caller, privilege] = system::get_caller();
+   if ( privilege != chain::privilege::kernel_mode )
+   {
+      system::print( "consume_account_rc must be called from kernel context" );
+      return res;
+   }
+
+   std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   token::mana_balance_object bal_obj;
+   system::get_object( constants::contract_space, owner, bal_obj );
+
+   regenerate_mana( bal_obj );
+
+   // Assumes mana cannot go negative...
+   if ( bal_obj.mana() < args.value() )
+   {
+      system::print( "account has insufficient mana for consumption" );
+      return res;
+   }
+
+   bal_obj.set_mana( bal_obj.mana() - args.value() );
+
+   if ( !system::put_object( constants::contract_space, owner, bal_obj ) )
+   {
+      system::print( "could not write 'account' mana balance" );
+      return res;
+   }
+
+   res.set_value( true );
+   return res;
+}
 
 token::name_result< constants::max_name_size > name()
 {
@@ -72,16 +151,17 @@ token::balance_of_result balance_of( const token::balance_of_arguments< constant
 
    std::string owner( reinterpret_cast< const char* >( args.get_owner().get_const() ), args.get_owner().get_length() );
 
-   token::balance_object bal_obj;
+   token::mana_balance_object bal_obj;
    system::get_object( constants::contract_space, owner, bal_obj );
 
-   res.mutable_value() = bal_obj.get_value();
+   res.set_value( bal_obj.get_balance() );
    return res;
 }
 
 token::transfer_result transfer( const token::transfer_arguments< constants::max_address_size, constants::max_address_size >& args )
 {
    token::transfer_result res;
+   res.set_value( false );
 
    std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
    std::string to( reinterpret_cast< const char* >( args.get_to().get_const() ), args.get_to().get_length() );
@@ -89,36 +169,57 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
 
    system::require_authority( from );
 
-   token::balance_of_arguments< constants::max_address_size > ba_args;
-   ba_args.mutable_owner() = args.get_from();
-   auto from_balance = balance_of( ba_args ).get_value();
-
-   if ( from_balance < value )
+   token::mana_balance_object from_bal_obj;
+   if ( !system::get_object( constants::contract_space, from, from_bal_obj ) )
    {
-      res.mutable_value() = false;
+      system::print( "could not read 'from' balance" );
       return res;
    }
 
-   from_balance = from_balance - value;
+   if ( from_bal_obj.balance() < value )
+   {
+      system::print( "'from' has insufficient balance" );
+      return res;
+   }
 
-   ba_args.mutable_owner() = args.get_to();
-   auto to_balance = balance_of( ba_args ).get_value() + value;
+   regenerate_mana( from_bal_obj );
 
-   token::balance_object bal_obj;
+   if ( from_bal_obj.mana() < value )
+   {
+      system::print( "'from' has insufficient mana for transfer" );
+      return res;
+   }
 
-   bal_obj.mutable_value() = from_balance;
-   system::put_object( constants::contract_space, from, bal_obj );
+   token::mana_balance_object to_bal_obj;
+   system::get_object( constants::contract_space, to, to_bal_obj );
 
-   bal_obj.mutable_value() = to_balance;
-   system::put_object( constants::contract_space, to, bal_obj );
+   regenerate_mana( to_bal_obj );
 
-   res.mutable_value() = true;
+   from_bal_obj.set_balance( from_bal_obj.balance() - value );
+   from_bal_obj.set_mana( from_bal_obj.mana() - value );
+   to_bal_obj.set_balance( to_bal_obj.balance() + value );
+   to_bal_obj.set_mana( to_bal_obj.mana() + value );
+
+   if ( !system::put_object( constants::contract_space, from, from_bal_obj ) )
+   {
+      system::print( "could not write 'from' balance" );
+      return res;
+   }
+
+   if ( !system::put_object( constants::contract_space, to, to_bal_obj ) )
+   {
+      system::print( "could not write 'to' balance" );
+      return res;
+   }
+
+   res.set_value( true );
    return res;
 }
 
 token::mint_result mint( const token::mint_arguments< constants::max_address_size >& args )
 {
    token::mint_result res;
+   res.set_value( false );
 
    std::string to( reinterpret_cast< const char* >( args.get_to().get_const() ), args.get_to().get_length() );
    uint64_t amount = args.get_value();
@@ -126,7 +227,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      res.mutable_value() = false;
+      system::print( "can only mint token from kernel context" );
       return res;
    }
 
@@ -136,23 +237,34 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    // Check overflow
    if ( new_supply < supply )
    {
-      res.mutable_value() = false;
+      system::print( "mint would overflow supply" );
       return res;
    }
 
-   token::balance_of_arguments< constants::max_address_size > ba_args;
-   ba_args.mutable_owner() = args.get_to();
-   auto to_balance = balance_of( ba_args ).get_value() + amount;
+   token::mana_balance_object to_bal_obj;
+   system::get_object( constants::contract_space, to, to_bal_obj );
 
-   token::balance_object bal_obj;
+   regenerate_mana( to_bal_obj );
 
-   bal_obj.mutable_value() = new_supply;
-   system::put_object( constants::contract_space, constants::supply_key, bal_obj );
+   to_bal_obj.set_balance( to_bal_obj.balance() + amount );
+   to_bal_obj.set_mana( to_bal_obj.mana() + amount );
 
-   bal_obj.mutable_value() = to_balance;
-   system::put_object( constants::contract_space, to, bal_obj );
+   token::balance_object supply_obj;
+   supply_obj.set_value( new_supply );
 
-   res.mutable_value() = true;
+   if( !system::put_object( constants::contract_space, constants::supply_key, supply_obj ) )
+   {
+      system::print( "could not write token supply" );
+      return res;
+   }
+
+   if( !system::put_object( constants::contract_space, to, to_bal_obj ) )
+   {
+      system::print( "could not write 'to' balance" );
+      return res;
+   }
+
+   res.set_value( true );
    return res;
 }
 
@@ -168,6 +280,24 @@ int main()
 
    switch( std::underlying_type_t< entries >( entry_point ) )
    {
+      case entries::get_account_rc_entry:
+      {
+         get_account_rc_arguments arg;
+         arg.deserialize( rdbuf );
+
+         auto res = get_account_rc( arg );
+         res.serialize( buffer );
+         break;
+      }
+      case entries::consume_account_rc_entry:
+      {
+         consume_account_rc_arguments arg;
+         arg.deserialize( rdbuf );
+
+         auto res = consume_account_rc( arg );
+         res.serialize( buffer );
+         break;
+      }
       case entries::name_entry:
       {
          auto res = name();
