@@ -37,6 +37,7 @@ const std::string koin_contract               = "\xd3\x20\x14\x06\x4f\xcc\x2e\x8
 
 using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
 using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
+using get_difficulty_metadata_result = koinos::contracts::pow::get_difficulty_metadata_result< 32, 32 >;
 using verify_block_signature_arguments
    = koinos::chain::verify_block_signature_arguments<
       koinos::system::detail::max_hash_size,
@@ -122,7 +123,9 @@ int main()
 
    if ( entry_point == std::underlying_type_t< entries >( entries::get_difficulty ) )
    {
-      get_difficulty_meta().serialize( buffer );
+      get_difficulty_metadata_result res;
+      res.set_value( get_difficulty_meta() );
+      res.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
       return 0;
