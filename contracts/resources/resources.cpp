@@ -137,10 +137,7 @@ consume_block_resources_result consume_block_resources( const consume_block_reso
    update_market( markets.mutable_network_bandwidth(), args.network_bandwidth_consumed() );
    update_market( markets.mutable_compute_bandwidth(), args.compute_bandwidth_consumed() );
 
-   if ( !system::put_object( constants::contract_space, constants::market_key, markets ) )
-   {
-      return res;
-   }
+   system::put_object( constants::contract_space, constants::market_key, markets );
 
    res.set_value( true );
    return res;
