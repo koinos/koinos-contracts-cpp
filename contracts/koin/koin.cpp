@@ -18,7 +18,7 @@ namespace constants {
 static const std::string koinos_name   = "Test Koinos";
 static const std::string koinos_symbol = "tKOIN";
 constexpr uint32_t koinos_decimals     = 8;
-constexpr uint64_t mana_regen_time     = 432'000; // 5 days
+constexpr uint64_t mana_regen_time_ms  = 1200000; // 20 minutes
 constexpr std::size_t max_address_size = 25;
 constexpr std::size_t max_name_size    = 32;
 constexpr std::size_t max_symbol_size  = 8;
@@ -54,11 +54,11 @@ using consume_account_rc_arguments
 void regenerate_mana( token::mana_balance_object& bal )
 {
    auto head_block_time = system::get_head_info().head_block_time();
-   auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time );
+   auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time_ms );
    if ( delta )
    {
-      auto new_mana = bal.mana() + ( ( int128_t( delta ) * int128_t( bal.balance() ) ) / constants::mana_regen_time ).convert_to< uint64_t >() ;
-      bal.set_mana( std::min( new_mana, bal.mana() ) );
+      auto new_mana = bal.mana() + ( ( int128_t( delta ) * int128_t( bal.balance() ) ) / constants::mana_regen_time_ms ).convert_to< uint64_t >() ;
+      bal.set_mana( std::min( new_mana, bal.balance() ) );
       bal.set_last_mana_update( head_block_time );
    }
 }
@@ -162,6 +162,12 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
    std::string to( reinterpret_cast< const char* >( args.get_to().get_const() ), args.get_to().get_length() );
    uint64_t value = args.get_value();
+
+   if ( from == to )
+   {
+      system::print( "cannot transfer to self\n" );
+      return res;
+   }
 
    system::require_authority( from );
 

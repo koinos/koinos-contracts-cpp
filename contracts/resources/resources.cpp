@@ -26,8 +26,8 @@ const std::string market_key                  = "market";
 constexpr uint64_t target_blocks_per_week         = 60480;
 constexpr uint64_t target_utilized_supply         = 10000000000000;
 
-constexpr uint64_t disk_budget_per_block          = 330; // 1G per year
-constexpr uint64_t max_disk_per_block             = 4096; // 4k
+constexpr uint64_t disk_budget_per_block          = 39600; // 10G per month
+constexpr uint64_t max_disk_per_block             = 200 << 10; // 200k
 constexpr uint64_t network_budget_per_block       = 1 << 18; // 256k block
 constexpr uint64_t max_network_per_block          = 1 << 20; // 1M block
 constexpr uint64_t compute_budget_per_block       = 1'000'000;
@@ -109,7 +109,7 @@ void update_market( market& m, uint64_t consumed )
    auto k = int128_t( m.resource_supply() ) * int128_t( m.rc_reserve() );
    m.set_resource_supply( m.resource_supply() + m.block_budget() - consumed );
    m.set_resource_supply( ( ( int128_t( m.resource_supply() ) * constants::decay_constant ) >> 64 ).convert_to< uint64_t >() );
-   m.set_rc_reserve( ( ( k / ( m.resource_supply() - 1 ) ) / m.resource_supply() ).convert_to< uint64_t >() );
+   m.set_rc_reserve( ( ( k + ( m.resource_supply() - 1 ) ) / m.resource_supply() ).convert_to< uint64_t >() );
 }
 
 consume_block_resources_result consume_block_resources( const consume_block_resources_arguments& args )
