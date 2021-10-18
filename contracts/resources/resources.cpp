@@ -19,7 +19,6 @@ enum entries : uint32_t
 namespace constants {
 
 constexpr std::size_t max_buffer_size         = 2048;
-const std::string contract_space              = system::get_contract_id();
 const std::string market_key                  = "market";
 
 // These are tuned really low, but we want to test constraints with low trx volume
@@ -41,6 +40,20 @@ constexpr uint64_t max_compute_per_block          = 10'000'000;
 constexpr uint64_t decay_constant                 = 18446532661087609961ull;
 
 } // constants
+
+
+namespace state {
+
+system::object_space contract_space()
+{
+   system::object_space obj_space;
+   auto contract_id = system::get_contract_id();
+   obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
+   obj_space.set_id( 0 );
+   return obj_space;
+}
+
+}
 
 using get_resource_limits_result        = chain::get_resource_limits_result;
 using consume_block_resources_arguments = chain::consume_block_resources_arguments;
@@ -67,7 +80,7 @@ void initialize_markets( resource_markets& markets )
 resource_markets get_markets()
 {
    resource_markets markets;
-   if ( !system::get_object( constants::contract_space, constants::market_key, markets ) )
+   if ( !system::get_object( state::contract_space(), constants::market_key, markets ) )
    {
       initialize_markets( markets );
    }
@@ -137,7 +150,7 @@ consume_block_resources_result consume_block_resources( const consume_block_reso
    update_market( markets.mutable_network_bandwidth(), args.network_bandwidth_consumed() );
    update_market( markets.mutable_compute_bandwidth(), args.compute_bandwidth_consumed() );
 
-   system::put_object( constants::contract_space, constants::market_key, markets );
+   system::put_object( state::contract_space(), constants::market_key, markets );
 
    res.set_value( true );
    return res;

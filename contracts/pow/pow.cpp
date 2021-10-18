@@ -22,7 +22,6 @@ namespace constants {
 constexpr std::size_t max_buffer_size         = 2048;
 constexpr std::size_t max_signature_size      = 65;
 constexpr std::size_t max_proof_size          = 128;
-const std::string contract_space              = system::get_contract_id();
 const std::string difficulty_metadata_key     = "";
 constexpr std::size_t target_block_interval_s = 10;
 constexpr uint64_t sha256_id                  = 0x12;
@@ -34,6 +33,19 @@ constexpr uint32_t initial_difficulty_bits    = 24;
 const std::string koin_contract               = "\xd3\x20\x14\x06\x4f\xcc\x2e\x8d\x11\x44\x0e\x1e\xab\x7f\xa8\xff\x7e\xd1\x4a\x60\xbd\x34\x24";
 
 } // constants
+
+namespace state {
+
+system::object_space contract_space()
+{
+   system::object_space obj_space;
+   auto contract_id = system::get_contract_id();
+   obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
+   obj_space.set_id( 0 );
+   return obj_space;
+}
+
+}
 
 using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
 using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
@@ -93,7 +105,7 @@ void initialize_difficulty( difficulty_metadata& diff_meta )
 difficulty_metadata get_difficulty_meta()
 {
    difficulty_metadata diff_meta;
-   if ( !system::get_object( constants::contract_space, constants::difficulty_metadata_key, diff_meta ) )
+   if ( !system::get_object( state::contract_space(), constants::difficulty_metadata_key, diff_meta ) )
    {
       initialize_difficulty( diff_meta );
    }
@@ -111,7 +123,7 @@ void update_difficulty( difficulty_metadata& diff_meta, uint64_t current_block_t
    auto target = std::numeric_limits< uint256_t >::max() / difficulty;
    to_binary( diff_meta.mutable_target(), target );
 
-   system::put_object( constants::contract_space, constants::difficulty_metadata_key, diff_meta );
+   system::put_object( state::contract_space(), constants::difficulty_metadata_key, diff_meta );
 }
 
 int main()
