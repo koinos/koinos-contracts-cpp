@@ -8,6 +8,7 @@
 #include <vector>
 
 using namespace koinos;
+using namespace std::string_literals;
 
 using uint256_t = boost::multiprecision::uint256_t;
 using EmbeddedProto::FieldBytes;
@@ -30,7 +31,7 @@ constexpr uint64_t block_reward               = 10000000000;
 constexpr uint32_t initial_difficulty_bits    = 24;
 
 // 0x005b1e61d37259b9c2d99bf417f592e0b77725165d2488be45
-const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45";
+const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
 
 } // constants
 
