@@ -181,7 +181,11 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
       return res;
    }
 
-   system::require_authority( from );
+   const auto [ caller, privilege ] = system::get_caller();
+   if ( caller != from )
+   {
+      system::require_authority( from );
+   }
 
    token::mana_balance_object from_bal_obj;
    system::get_object( state::contract_space(), from, from_bal_obj );
