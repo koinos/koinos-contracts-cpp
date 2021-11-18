@@ -217,6 +217,16 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    system::put_object( state::contract_space(), from, from_bal_obj );
    system::put_object( state::contract_space(), to, to_bal_obj );
 
+   token::transfer_event< constants::max_address_size, constants::max_address_size > transfer_event;
+   transfer_event.mutable_from().set( args.get_from().get_const(), args.get_from().get_length() );
+   transfer_event.mutable_to().set( args.get_to().get_const(), args.get_to().get_length() );
+   transfer_event.set_value( args.get_value() );
+
+   std::vector< std::string > impacted;
+   impacted.push_back( to );
+   impacted.push_back( from );
+   koinos::system::event( "koin.transfer", transfer_event, impacted );
+
    res.set_value( true );
    return res;
 }
@@ -259,6 +269,14 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
 
    system::put_object( state::contract_space(), constants::supply_key, supply_obj );
    system::put_object( state::contract_space(), to, to_bal_obj );
+
+   token::mint_event< constants::max_address_size > mint_event;
+   mint_event.mutable_to().set( args.get_to().get_const(), args.get_to().get_length() );
+   mint_event.set_value( amount );
+
+   std::vector< std::string > impacted;
+   impacted.push_back( to );
+   koinos::system::event( "koin.mint", mint_event, impacted );
 
    res.set_value( true );
    return res;
