@@ -51,15 +51,14 @@ system::object_space contract_space()
 using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
 using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
 using get_difficulty_metadata_result = koinos::contracts::pow::get_difficulty_metadata_result< 32, 32 >;
-using verify_block_signature_arguments
-   = koinos::chain::verify_block_signature_arguments<
+using process_block_signature_arguments
+   = koinos::chain::process_block_signature_arguments<
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_active_data_size,
       constants::max_proof_size >;
 
 using active_block_data
    = koinos::protocol::active_block_data<
-      koinos::system::detail::max_hash_size,
       koinos::system::detail::max_hash_size,
       constants::max_signature_size >;
 
@@ -144,7 +143,7 @@ int main()
       return 0;
    }
 
-   koinos::chain::verify_block_signature_result ret;
+   koinos::chain::process_block_signature_result ret;
    ret.mutable_value() = false;
 
    auto head_block_time = system::get_head_info().get_head_block_time();
@@ -169,7 +168,7 @@ int main()
 
    auto argstr = system::get_contract_arguments();
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
-   verify_block_signature_arguments args;
+   process_block_signature_arguments args;
    args.deserialize( rdbuf );
 
    pow_signature_data sig_data;
