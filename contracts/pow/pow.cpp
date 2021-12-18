@@ -51,16 +51,13 @@ system::object_space contract_space()
 using pow_signature_data = koinos::contracts::pow::pow_signature_data< 32, 65 >;
 using difficulty_metadata = koinos::contracts::pow::difficulty_metadata< 32, 32 >;
 using get_difficulty_metadata_result = koinos::contracts::pow::get_difficulty_metadata_result< 32, 32 >;
-using process_block_signature_arguments
-   = koinos::chain::process_block_signature_arguments<
+using process_block_signature_arguments = koinos::chain::process_block_signature_arguments<
       koinos::system::detail::max_hash_size,
-      koinos::system::detail::max_active_data_size,
+      koinos::system::detail::max_hash_size,
+      koinos::system::detail::max_hash_size,
+      koinos::system::detail::max_hash_size,
+      koinos::system::detail::max_address_size,
       constants::max_proof_size >;
-
-using active_block_data
-   = koinos::protocol::active_block_data<
-      koinos::system::detail::max_hash_size,
-      constants::max_signature_size >;
 
 template< uint32_t MAX_LENGTH >
 void to_binary( FieldBytes< MAX_LENGTH >& f, const uint256_t& n )
@@ -172,7 +169,7 @@ int main()
    args.deserialize( rdbuf );
 
    pow_signature_data sig_data;
-   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature_data().get_const() ) ), args.get_signature_data().get_length() );
+   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_signature().get_const() ) ), args.get_signature().get_length() );
    sig_data.deserialize( rdbuf );
 
    std::string nonce_str( reinterpret_cast< const char* >( sig_data.get_nonce().get_const() ), sig_data.get_nonce().get_length() );
@@ -196,15 +193,11 @@ int main()
    update_difficulty( diff_meta, head_block_time );
 
    // Recover address from signature
-   std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
+   std::string sig_str( reinterpret_cast< const char* >( args.get_signature().get_const() ), args.get_signature().get_length() );
    digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
    auto producer = system::recover_public_key( sig_str, digest_str );
 
-   active_block_data active;
-   rdbuf = koinos::read_buffer( const_cast< uint8_t* >( reinterpret_cast< const uint8_t* >( args.get_active().get_const() ) ), args.get_active().get_length() );
-   active.deserialize( rdbuf );
-
-   std::string signer( reinterpret_cast< const char* >( active.get_signer().get_const() ), active.get_signer().get_length() );
+   std::string signer( reinterpret_cast< const char* >( args.get_header().get_signer().get_const() ), args.get_header().get_signer().get_length() );
 
    if ( producer != signer )
    {
