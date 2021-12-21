@@ -23,22 +23,48 @@ constexpr std::size_t max_address_size = 25;
 constexpr std::size_t max_name_size    = 32;
 constexpr std::size_t max_symbol_size  = 8;
 constexpr std::size_t max_buffer_size  = 2048;
+constexpr uint32_t supply_id           = 0;
+constexpr uint32_t balance_id          = 1;
 std::string supply_key                 = "";
+const auto contract_id                 = system::get_contract_id();
 
 } // constants
 
 namespace state {
 
-system::object_space contract_space()
+namespace detail {
+
+system::object_space create_supply_space()
 {
-   system::object_space obj_space;
-   auto contract_id = system::get_contract_id();
-   obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
-   obj_space.set_id( 0 );
-   return obj_space;
+   system::object_space supply_space;
+   supply_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
+   supply_space.set_id( constants::supply_id );
+   return supply_space;
 }
 
+system::object_space create_balance_space()
+{
+   system::object_space balance_space;
+   balance_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
+   balance_space.set_id( constants::balance_id );
+   return balance_space;
 }
+
+} // detail
+
+const system::object_space& supply_space()
+{
+   static const auto supply_space = detail::create_supply_space();
+   return supply_space;
+}
+
+const system::object_space& balance_space()
+{
+   static const auto balance_space = detail::create_balance_space();
+   return balance_space;
+}
+
+} // state
 
 enum entries : uint32_t
 {
@@ -79,7 +105,7 @@ chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& arg
 {
    std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
    token::mana_balance_object bal_obj;
-   system::get_object( state::contract_space(), owner, bal_obj );
+   system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
 
@@ -102,7 +128,7 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
 
    std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
    token::mana_balance_object bal_obj;
-   system::get_object( state::contract_space(), owner, bal_obj );
+   system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
 
@@ -115,7 +141,7 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
 
    bal_obj.set_mana( bal_obj.mana() - args.value() );
 
-   system::put_object( state::contract_space(), owner, bal_obj );
+   system::put_object( state::balance_space(), owner, bal_obj );
 
    res.set_value( true );
    return res;
@@ -147,7 +173,7 @@ token::total_supply_result total_supply()
    token::total_supply_result res;
 
    token::balance_object bal_obj;
-   system::get_object( state::contract_space(), constants::supply_key, bal_obj );
+   system::get_object( state::supply_space(), constants::supply_key, bal_obj );
 
    res.mutable_value() = bal_obj.get_value();
    return res;
@@ -160,7 +186,7 @@ token::balance_of_result balance_of( const token::balance_of_arguments< constant
    std::string owner( reinterpret_cast< const char* >( args.get_owner().get_const() ), args.get_owner().get_length() );
 
    token::mana_balance_object bal_obj;
-   system::get_object( state::contract_space(), owner, bal_obj );
+   system::get_object( state::balance_space(), owner, bal_obj );
 
    res.set_value( bal_obj.get_balance() );
    return res;
@@ -188,7 +214,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    }
 
    token::mana_balance_object from_bal_obj;
-   system::get_object( state::contract_space(), from, from_bal_obj );
+   system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
    {
@@ -205,7 +231,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    }
 
    token::mana_balance_object to_bal_obj;
-   system::get_object( state::contract_space(), to, to_bal_obj );
+   system::get_object( state::balance_space(), to, to_bal_obj );
 
    regenerate_mana( to_bal_obj );
 
@@ -214,8 +240,8 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    to_bal_obj.set_balance( to_bal_obj.balance() + value );
    to_bal_obj.set_mana( to_bal_obj.mana() + value );
 
-   system::put_object( state::contract_space(), from, from_bal_obj );
-   system::put_object( state::contract_space(), to, to_bal_obj );
+   system::put_object( state::balance_space(), from, from_bal_obj );
+   system::put_object( state::balance_space(), to, to_bal_obj );
 
    token::transfer_event< constants::max_address_size, constants::max_address_size > transfer_event;
    transfer_event.mutable_from().set( args.get_from().get_const(), args.get_from().get_length() );
@@ -257,7 +283,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    }
 
    token::mana_balance_object to_bal_obj;
-   system::get_object( state::contract_space(), to, to_bal_obj );
+   system::get_object( state::balance_space(), to, to_bal_obj );
 
    regenerate_mana( to_bal_obj );
 
@@ -267,8 +293,8 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    token::balance_object supply_obj;
    supply_obj.set_value( new_supply );
 
-   system::put_object( state::contract_space(), constants::supply_key, supply_obj );
-   system::put_object( state::contract_space(), to, to_bal_obj );
+   system::put_object( state::supply_space(), constants::supply_key, supply_obj );
+   system::put_object( state::balance_space(), to, to_bal_obj );
 
    token::mint_event< constants::max_address_size > mint_event;
    mint_event.mutable_to().set( args.get_to().get_const(), args.get_to().get_length() );
