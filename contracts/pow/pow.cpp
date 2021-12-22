@@ -193,7 +193,7 @@ int main()
    update_difficulty( diff_meta, head_block_time );
 
    // Recover address from signature
-   std::string sig_str( reinterpret_cast< const char* >( args.get_signature().get_const() ), args.get_signature().get_length() );
+   std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
    digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
    auto producer = system::recover_public_key( sig_str, digest_str );
 
