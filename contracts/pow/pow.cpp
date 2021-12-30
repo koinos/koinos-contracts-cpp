@@ -26,7 +26,7 @@ constexpr std::size_t max_proof_size          = 128;
 const std::string difficulty_metadata_key     = "";
 constexpr std::size_t target_block_interval_s = 10;
 constexpr uint64_t sha256_id                  = 0x12;
-constexpr uint64_t pow_end_date               = 1640995199000; // 2021-12-31T23:59:59Z
+constexpr uint64_t pow_end_date               = 1672531199000; // 2022-12-31T23:59:59Z
 constexpr uint64_t block_reward               = 10000000000;
 constexpr uint32_t initial_difficulty_bits    = 24;
 
