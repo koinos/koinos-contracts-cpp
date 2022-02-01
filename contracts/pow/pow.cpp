@@ -146,7 +146,7 @@ int main()
    auto head_block_time = system::get_head_info().get_head_block_time();
    if ( uint64_t( head_block_time ) > constants::pow_end_date )
    {
-      system::print( "testnet has ended" );
+      system::log( "testnet has ended" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -156,7 +156,7 @@ int main()
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::print( "pow contract must be called from kernel" );\
+      system::log( "pow contract must be called from kernel" );\
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -183,7 +183,7 @@ int main()
 
    if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
-      system::print( "pow did not meet target\n" );
+      system::log( "pow did not meet target\n" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -201,7 +201,7 @@ int main()
 
    if ( producer != signer )
    {
-      system::print( "signature and signer are mismatching\n" );
+      system::log( "signature and signer are mismatching\n" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -214,7 +214,7 @@ int main()
    auto success = koin_token.mint( signer, constants::block_reward );
    if ( !success )
    {
-      system::print( "could not mint KOIN to producer address " );
+      system::log( "could not mint KOIN to producer address " );
    }
 
    ret.set_value( success );
