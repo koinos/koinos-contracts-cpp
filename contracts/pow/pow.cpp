@@ -1,3 +1,4 @@
+#include <koinos/crypto.hpp>
 #include <koinos/system/system_calls.hpp>
 #include <koinos/token.hpp>
 
@@ -26,7 +27,7 @@ constexpr std::size_t max_proof_size          = 128;
 const std::string difficulty_metadata_key     = "";
 constexpr std::size_t target_block_interval_s = 10;
 constexpr uint64_t sha256_id                  = 0x12;
-constexpr uint64_t pow_end_date               = 1640995199000; // 2021-12-31T23:59:59Z
+constexpr uint64_t pow_end_date               = 1672531199000;
 constexpr uint64_t block_reward               = 10000000000;
 constexpr uint32_t initial_difficulty_bits    = 24;
 
@@ -37,13 +38,24 @@ const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb
 
 namespace state {
 
-system::object_space contract_space()
+namespace detail {
+
+system::object_space create_contract_space()
 {
    system::object_space obj_space;
    auto contract_id = system::get_contract_id();
    obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
    obj_space.set_id( 0 );
+   obj_space.set_system( true );
    return obj_space;
+}
+
+} // detail
+
+system::object_space contract_space()
+{
+   static auto space = detail::create_contract_space();
+   return space;
 }
 
 }
@@ -195,11 +207,11 @@ int main()
    // Recover address from signature
    std::string sig_str( reinterpret_cast< const char* >( sig_data.get_recoverable_signature().get_const() ), sig_data.get_recoverable_signature().get_length() );
    digest_str = std::string( reinterpret_cast< const char* >( args.get_digest().get_const() ), args.get_digest().get_length() );
-   auto producer = system::recover_public_key( sig_str, digest_str );
+   auto producer_key = system::recover_public_key( sig_str, digest_str );
 
    std::string signer( reinterpret_cast< const char* >( args.get_header().get_signer().get_const() ), args.get_header().get_signer().get_length() );
 
-   if ( producer != signer )
+   if ( koinos::address_from_public_key( producer_key ) != signer )
    {
       system::log( "signature and signer are mismatching\n" );
       ret.serialize( buffer );

@@ -44,13 +44,24 @@ constexpr uint64_t decay_constant                 = 18446532661087609961ull;
 
 namespace state {
 
-system::object_space contract_space()
+namespace detail {
+
+system::object_space create_contract_space()
 {
    system::object_space obj_space;
    auto contract_id = system::get_contract_id();
    obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
    obj_space.set_id( 0 );
+   obj_space.set_system( true );
    return obj_space;
+}
+
+} // detail
+
+system::object_space contract_space()
+{
+   static auto space = detail::create_contract_space();
+   return space;
 }
 
 }

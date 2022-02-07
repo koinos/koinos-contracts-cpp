@@ -39,6 +39,7 @@ system::object_space create_supply_space()
    system::object_space supply_space;
    supply_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
    supply_space.set_id( constants::supply_id );
+   supply_space.set_system( true );
    return supply_space;
 }
 
@@ -47,6 +48,7 @@ system::object_space create_balance_space()
    system::object_space balance_space;
    balance_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
    balance_space.set_id( constants::balance_id );
+   balance_space.set_system( true );
    return balance_space;
 }
 
