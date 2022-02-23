@@ -11,9 +11,9 @@ using int128_t = boost::multiprecision::int128_t;
 
 enum entries : uint32_t
 {
-   get_resource_limits_entry     = 0,
-   consume_block_resources_entry = 1,
-   get_resource_markets_entry    = 2
+   get_resource_limits_entry     = 0x427a0394,
+   consume_block_resources_entry = 0x9850b1fd,
+   get_resource_markets_entry    = 0xebe9b9e7
 };
 
 namespace constants {
@@ -44,13 +44,24 @@ constexpr uint64_t decay_constant                 = 18446532661087609961ull;
 
 namespace state {
 
-system::object_space contract_space()
+namespace detail {
+
+system::object_space create_contract_space()
 {
    system::object_space obj_space;
    auto contract_id = system::get_contract_id();
    obj_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( contract_id.data() ), contract_id.size() );
    obj_space.set_id( 0 );
+   obj_space.set_system( true );
    return obj_space;
+}
+
+} // detail
+
+system::object_space contract_space()
+{
+   static auto space = detail::create_contract_space();
+   return space;
 }
 
 }
