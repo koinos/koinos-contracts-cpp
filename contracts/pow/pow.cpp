@@ -16,7 +16,7 @@ using EmbeddedProto::FieldBytes;
 
 enum class entries : uint32_t
 {
-   get_difficulty = 0x4a758831,
+   get_difficulty = 0x2e40cb65,
 };
 
 namespace constants {

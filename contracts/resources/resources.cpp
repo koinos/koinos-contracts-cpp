@@ -11,9 +11,9 @@ using int128_t = boost::multiprecision::int128_t;
 
 enum entries : uint32_t
 {
-   get_resource_limits_entry     = 0,
-   consume_block_resources_entry = 1,
-   get_resource_markets_entry    = 2
+   get_resource_limits_entry     = 0x427a0394,
+   consume_block_resources_entry = 0x9850b1fd,
+   get_resource_markets_entry    = 0xebe9b9e7
 };
 
 namespace constants {
