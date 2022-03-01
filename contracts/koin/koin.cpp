@@ -124,7 +124,7 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
    const auto [caller, privilege] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::log( "consume_account_rc must be called from kernel context\n" );
+      system::log( "consume_account_rc must be called from kernel context" );
       return res;
    }
 
@@ -137,7 +137,7 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
    // Assumes mana cannot go negative...
    if ( bal_obj.mana() < args.value() )
    {
-      system::log( "account has insufficient mana for consumption\n" );
+      system::log( "account has insufficient mana for consumption" );
       return res;
    }
 
@@ -205,7 +205,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
 
    if ( from == to )
    {
-      system::log( "cannot transfer to self\n" );
+      system::log( "cannot transfer to self" );
       return res;
    }
 
@@ -220,7 +220,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
 
    if ( from_bal_obj.balance() < value )
    {
-      system::log( "'from' has insufficient balance\n" );
+      system::log( "'from' has insufficient balance" );
       return res;
    }
 
@@ -228,7 +228,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
 
    if ( from_bal_obj.mana() < value )
    {
-      system::log( "'from' has insufficient mana for transfer\n" );
+      system::log( "'from' has insufficient mana for transfer" );
       return res;
    }
 
@@ -270,7 +270,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::log( "can only mint token from kernel context\n" );
+      system::log( "can only mint token from kernel context" );
       return res;
    }
 
@@ -280,7 +280,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    // Check overflow
    if ( new_supply < supply )
    {
-      system::log( "mint would overflow supply\n" );
+      system::log( "mint would overflow supply" );
       return res;
    }
 
