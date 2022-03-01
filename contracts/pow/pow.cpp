@@ -168,7 +168,7 @@ int main()
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::log( "pow contract must be called from kernel" );\
+      system::log( "pow contract must be called from kernel" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -226,7 +226,7 @@ int main()
    auto success = koin_token.mint( signer, constants::block_reward );
    if ( !success )
    {
-      system::log( "could not mint KOIN to producer address " );
+      system::log( "could not mint KOIN to producer address" );
    }
 
    ret.set_value( success );
