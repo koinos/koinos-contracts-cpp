@@ -144,7 +144,7 @@ consume_block_resources_result consume_block_resources( const consume_block_reso
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::log( "consume_block_resources must be called from kernel context" );
+      system::log( "The system call consume_block_resources must be called from kernel context" );
       return res;
    }
 
