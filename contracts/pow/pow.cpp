@@ -195,7 +195,7 @@ int main()
 
    if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
-      system::log( "pow did not meet target\n" );
+      system::log( "pow did not meet target" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
@@ -213,7 +213,7 @@ int main()
 
    if ( koinos::address_from_public_key( producer_key ) != signer )
    {
-      system::log( "signature and signer are mismatching\n" );
+      system::log( "signature and signer are mismatching" );
       ret.serialize( buffer );
       std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
       system::set_contract_result_bytes( retval );
