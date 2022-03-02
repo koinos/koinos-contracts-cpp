@@ -13,7 +13,7 @@ enum entries : uint32_t
 {
    get_resource_limits_entry     = 0x427a0394,
    consume_block_resources_entry = 0x9850b1fd,
-   get_resource_markets_entry    = 0xebe9b9e7
+   get_resource_markets_entry    = 0xebe9b9e7,
 };
 
 namespace constants {
@@ -29,8 +29,8 @@ constexpr uint64_t disk_budget_per_block          = 39600; // 10G per month
 constexpr uint64_t max_disk_per_block             = 200 << 10; // 200k
 constexpr uint64_t network_budget_per_block       = 1 << 18; // 256k block
 constexpr uint64_t max_network_per_block          = 1 << 20; // 1M block
-constexpr uint64_t compute_budget_per_block       = 1'000'000;
-constexpr uint64_t max_compute_per_block          = 10'000'000;
+constexpr uint64_t compute_budget_per_block       = 230'000'000; // ~0.1s
+constexpr uint64_t max_compute_per_block          = 1'150'000'000; // ~0.5s
 
 // Exponential decay constant for 1 month half life
 // Constant is ( -ln(2) * num_blocks ) * 2^64
