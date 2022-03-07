@@ -29,15 +29,15 @@ constexpr uint64_t disk_budget_per_block          = 39600; // 10G per month
 constexpr uint64_t max_disk_per_block             = 200 << 10; // 200k
 constexpr uint64_t network_budget_per_block       = 1 << 18; // 256k block
 constexpr uint64_t max_network_per_block          = 1 << 20; // 1M block
-constexpr uint64_t compute_budget_per_block       = 230'000'000; // ~0.1s
-constexpr uint64_t max_compute_per_block          = 1'150'000'000; // ~0.5s
+constexpr uint64_t compute_budget_per_block       = 57'500'000; // ~0.1s
+constexpr uint64_t max_compute_per_block          = 287'500'000; // ~0.5s
 
 // Exponential decay constant for 1 month half life
 // Constant is ( -ln(2) * num_blocks ) * 2^64
-// constexpr uint64_t decay_constant                 = 18446694743881045523ull;
+constexpr uint64_t decay_constant                 = 18446694743881045523ull;
 
 // Exponential decay constant for 1 week half life
-constexpr uint64_t decay_constant                 = 18446532661087609961ull;
+// constexpr uint64_t decay_constant                 = 18446532661087609961ull;
 
 } // constants
 

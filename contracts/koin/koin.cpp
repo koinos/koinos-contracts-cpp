@@ -18,7 +18,7 @@ namespace constants {
 static const std::string koinos_name   = "Test Koinos";
 static const std::string koinos_symbol = "tKOIN";
 constexpr uint32_t koinos_decimals     = 8;
-constexpr uint64_t mana_regen_time_ms  = 1200000; // 20 minutes
+constexpr uint64_t mana_regen_time_ms  = 432'000'000; // 5 days
 constexpr std::size_t max_address_size = 25;
 constexpr std::size_t max_name_size    = 32;
 constexpr std::size_t max_symbol_size  = 8;
