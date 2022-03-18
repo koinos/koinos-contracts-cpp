@@ -10,6 +10,8 @@
 using namespace koinos;
 using namespace koinos::contracts;
 
+using namespace std::string_literals;
+
 namespace constants {
 
 const uint64_t proposal_space_id = 0;
@@ -25,9 +27,9 @@ namespace detail {
 system::object_space create_proposal_space()
 {
    system::object_space proposal_space;
-   supply_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
-   supply_space.set_id( constants::proposal_space_id );
-   supply_space.set_system( true );
+   proposal_space.mutable_zone().set( reinterpret_cast< const uint8_t* >( constants::contract_id.data() ), constants::contract_id.size() );
+   proposal_space.set_id( constants::proposal_space_id );
+   proposal_space.set_system( true );
    return proposal_space;
 }
 
@@ -50,21 +52,148 @@ enum entries : uint32_t
    block_callback_entry          = 0x531d5d4e
 };
 
+const uint64_t max_proposal_limit = 10;
+
+using proposal_record = koinos::contracts::governance::proposal_record<
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+using submit_proposal_arguments = koinos::contracts::governance::submit_proposal_arguments<
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // header.chain_id
+   system::detail::max_nonce_size,          // header.nonce
+   system::detail::max_hash_size,           // header.operation_merkle_root
+   system::detail::max_address_size,        // header.payer
+   system::detail::max_address_size,        // header.payee
+   system::detail::max_operation_length,    // operations length
+   system::detail::max_address_size,        // upload_contract.contract_id
+   system::detail::max_contract_size,       // upload_contract.bytecode
+   system::detail::max_contract_size,       // upload_contract.abi
+   system::detail::max_address_size,        // call_contract.contract_id
+   system::detail::max_argument_size,       // call_contract.args
+   system::detail::max_argument_size,       // set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // set_system_contract.contract_id
+   system::detail::max_signatures_length,   // signatures length
+   system::detail::max_signature_size >;    // signatures
+
+using get_proposal_by_id_arguments = koinos::contracts::governance::get_proposal_by_id_arguments< system::detail::max_hash_size >;
+using get_proposals_by_status_arguments = koinos::contracts::governance::get_proposals_by_status_arguments< system::detail::max_hash_size >;
+using get_proposals_arguments = koinos::contracts::governance::get_proposals_arguments< system::detail::max_hash_size >;
+
+using block_callback_arguments = koinos::contracts::governance::block_callback_arguments;
+
+using submit_proposal_result = koinos::contracts::governance::submit_proposal_result;
+using get_proposal_by_id_result = koinos::contracts::governance::get_proposal_by_id_result<
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+using get_proposals_by_status_result = koinos::contracts::governance::get_proposals_by_status_result<
+   max_proposal_limit,
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+using get_proposals_by_status_result = koinos::contracts::governance::get_proposals_by_status_result<
+   max_proposal_limit,
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+using get_proposals_result = koinos::contracts::governance::get_proposals_result<
+   max_proposal_limit,
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+using block_callback_result = koinos::contracts::governance::block_callback_result;
+
 submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 {
    submit_proposal_result res;
    return res;
 }
 
-get_proposal_by_id_result get_proposal_by_id( const get_proposal_by_id& args )
+get_proposal_by_id_result get_proposal_by_id( const get_proposal_by_id_arguments& args )
 {
    get_proposal_by_id_result res;
    return res;
 }
 
-get_proposal_by_status_result get_proposal_by_id( const get_proposal_by_status& args )
+get_proposals_by_status_result get_proposals_by_status( const get_proposals_by_status_arguments& args )
 {
-   get_proposal_by_status_result res;
+   get_proposals_by_status_result res;
    return res;
 }
 
@@ -85,7 +214,7 @@ int main()
    auto entry_point = system::get_entry_point();
    auto args = system::get_contract_arguments();
 
-   std::array< uint8_t, constants::max_buffer_size > retbuf;
+   std::array< uint8_t, koinos::system::detail::max_buffer_size > retbuf;
 
    koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
    koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
@@ -112,10 +241,10 @@ int main()
       }
       case entries::get_proposals_by_status_entry:
       {
-         get_proposal_by_status_arguments arg;
+         get_proposals_by_status_arguments arg;
          arg.deserialize( rdbuf );
 
-         auto res = get_proposal_by_status( arg );
+         auto res = get_proposals_by_status( arg );
          res.serialize( buffer );
          break;
       }
@@ -129,7 +258,7 @@ int main()
       }
       case entries::block_callback_entry:
       {
-         block_callback_args args;
+         block_callback_arguments args;
          block_callback( args );
          break;
       }
