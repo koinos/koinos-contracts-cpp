@@ -78,7 +78,8 @@ enum entries : uint32_t
    total_supply_entry       = 0xb0da3934,
    balance_of_entry         = 0x5c721497,
    transfer_entry           = 0x27f576ca,
-   mint_entry               = 0xdc6f17bb
+   mint_entry               = 0xdc6f17bb,
+   burn_entry               = 0x859facc5
 };
 
 using get_account_rc_arguments
@@ -310,6 +311,62 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    return res;
 }
 
+token::burn_result burn( const token::burn_arguments< constants::max_address_size >& args )
+{
+   token::burn_result res;
+   res.set_value( false );
+
+   std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
+   uint64_t value = args.get_value();
+
+   token::mana_balance_object from_bal_obj;
+   system::get_object( state::balance_space(), from, from_bal_obj );
+
+   if ( from_bal_obj.balance() < value )
+   {
+      system::log( "Account 'from' has insufficient balance" );
+      return res;
+   }
+
+   regenerate_mana( from_bal_obj );
+
+   if ( from_bal_obj.mana() < value )
+   {
+      system::log( "Account 'from' has insufficient mana for burn" );
+      return res;
+   }
+
+   from_bal_obj.set_balance( from_bal_obj.balance() - value );
+   from_bal_obj.set_mana( from_bal_obj.mana() - value );
+
+   auto supply = total_supply().get_value();
+   auto new_supply = supply - value;
+
+   // Check underflow
+   if ( new_supply >= 0 )
+   {
+      system::log( "Mint would underflow supply" );
+      return res;
+   }
+
+   token::balance_object supply_obj;
+   supply_obj.set_value( new_supply );
+
+   system::put_object( state::supply_space(), constants::supply_key, supply_obj );
+   system::put_object( state::balance_space(), from, from_bal_obj );
+
+   token::burn_event< constants::max_address_size > burn_event;
+   burn_event.mutable_from().set( args.get_from().get_const(), args.get_from().get_length() );
+   burn_event.set_value( args.get_value() );
+
+   std::vector< std::string > impacted;
+   impacted.push_back( from );
+   koinos::system::event( "koin.burn", burn_event, impacted );
+
+   res.set_value( true );
+   return res;
+}
+
 int main()
 {
    auto entry_point = system::get_entry_point();
@@ -388,6 +445,15 @@ int main()
          arg.deserialize( rdbuf );
 
          auto res = mint( arg );
+         res.serialize( buffer );
+         break;
+      }
+      case entries::burn_entry:
+      {
+         token::burn_arguments< constants::max_address_size > arg;
+         arg.deserialize( rdbuf );
+
+         auto res = burn( arg );
          res.serialize( buffer );
          break;
       }
