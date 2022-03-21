@@ -19,10 +19,14 @@ const auto contract_id                   = system::get_contract_id();
 const std::string koin_contract          = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
 constexpr uint64_t blocks_per_week       = uint64_t( 604800 ) / uint64_t( 10 );
 constexpr uint64_t review_period         = blocks_per_week;
-constexpr uint64_t active_period         = blocks_per_week * 2;
+constexpr uint64_t vote_period           = blocks_per_week * 2;
 constexpr uint64_t application_delay     = blocks_per_week;
 constexpr uint64_t governance_threshold  = 75;
-constexpr uint64_t application_threshold = 60;
+constexpr uint64_t standard_threshold    = 60;
+
+constexpr uint64_t minimum_proposal_denominator = 1000000;
+constexpr uint64_t maximum_proposal_multiplier  = 10;
+
 } // constants
 
 namespace state {
@@ -258,6 +262,16 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 
    // Burn proposal fee
    auto koin_token = koinos::token( constants::koin_contract );
+   auto total_supply = koin_token.total_supply();
+
+   auto fee = std::max( total_supply / constants::minimum_proposal_denominator, args.get_proposal().get_header().get_rc_limit() * constants::maximum_proposal_multiplier );
+   if ( args.get_fee() < fee )
+   {
+      std::string err_msg = "Proposal fee threshold not met - ";
+      err_msg += "threshold: " + std::to_string( fee ) + ", ";
+      err_msg += "actual: " + std::to_string( args.get_fee() );
+      system::log( err_msg );
+   }
 
    if ( !koin_token.burn( payer.string_value(), args.get_fee() ) )
    {
@@ -284,9 +298,9 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
    prec.set_status( governance::proposal_status::pending );
 
    if ( proposal_updates_governance( prec.get_proposal() ) )
-      prec.set_vote_threshold( constants::active_period * constants::governance_threshold / 100 );
+      prec.set_vote_threshold( constants::vote_period * constants::governance_threshold / 100 );
    else
-      prec.set_vote_threshold( constants::active_period * constants::application_threshold / 100 );
+      prec.set_vote_threshold( constants::vote_period * constants::standard_threshold / 100 );
 
    system::put_object( state::proposal_space(), id, prec );
 
