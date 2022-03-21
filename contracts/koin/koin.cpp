@@ -351,7 +351,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    // Check underflow
    if ( new_supply >= 0 )
    {
-      system::log( "Mint would underflow supply" );
+      system::log( "Burn would underflow supply" );
       return res;
    }
 
