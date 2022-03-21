@@ -14,10 +14,15 @@ using namespace std::string_literals;
 
 namespace constants {
 
-const uint64_t proposal_space_id   = 0;
-const auto contract_id             = system::get_contract_id();
-const std::string koin_contract    = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
-constexpr uint64_t blocks_per_week = uint64_t( 604800 ) / uint64_t( 10 );
+const uint64_t proposal_space_id         = 0;
+const auto contract_id                   = system::get_contract_id();
+const std::string koin_contract          = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
+constexpr uint64_t blocks_per_week       = uint64_t( 604800 ) / uint64_t( 10 );
+constexpr uint64_t review_period         = blocks_per_week;
+constexpr uint64_t active_period         = blocks_per_week * 2;
+constexpr uint64_t application_delay     = blocks_per_week;
+constexpr uint64_t governance_threshold  = 75;
+constexpr uint64_t application_threshold = 60;
 } // constants
 
 namespace state {
@@ -179,6 +184,87 @@ using get_proposals_result = koinos::contracts::governance::get_proposals_result
 
 using block_callback_result = koinos::contracts::governance::block_callback_result;
 
+using operation = koinos::protocol::operation<
+   system::detail::max_address_size,        // transactions.upload_contract.contract_id
+   system::detail::max_contract_size,       // transactions.upload_contract.bytecode
+   system::detail::max_contract_size,       // transactions.upload_contract.abi
+   system::detail::max_address_size,        // transactions.call_contract.contract_id
+   system::detail::max_argument_size,       // transactions.call_contract.args
+   system::detail::max_argument_size,       // transactions.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size >;      // transactions.set_system_contract.contract_id
+
+using proposal_submission_event = koinos::contracts::governance::proposal_submission_event<
+   system::detail::max_hash_size,           // id
+   system::detail::max_hash_size,           // proposal.id
+   system::detail::max_hash_size,           // proposal.header.chain_id
+   system::detail::max_nonce_size,          // proposal.header.nonce
+   system::detail::max_hash_size,           // proposal.header.operation_merkle_root
+   system::detail::max_address_size,        // proposal.header.payer
+   system::detail::max_address_size,        // proposal.header.payee
+   system::detail::max_operation_length,    // proposal.operations length
+   system::detail::max_address_size,        // proposal.upload_contract.contract_id
+   system::detail::max_contract_size,       // proposal.upload_contract.bytecode
+   system::detail::max_contract_size,       // proposal.upload_contract.abi
+   system::detail::max_address_size,        // proposal.call_contract.contract_id
+   system::detail::max_argument_size,       // proposal.call_contract.args
+   system::detail::max_argument_size,       // proposal.set_system_call.target.system_call_bundle.contract_id
+   system::detail::max_address_size,        // proposal.set_system_contract.contract_id
+   system::detail::max_signatures_length,   // proposal.signatures length
+   system::detail::max_signature_size >;    // proposal.signatures
+
+bool proposal_updates_governance( const koinos::system::transaction& proposal )
+{
+   for ( uint64_t i = 0; i < proposal.get_operations().get_length(); i++ )
+   {
+      const auto& op = proposal.get_operations().get_const( i );
+      switch( op.get_which_op() )
+      {
+         case operation::FieldNumber::UPLOAD_CONTRACT:
+         {
+            const auto& upload_op = op.get_upload_contract();
+
+            std::string contract_id( reinterpret_cast< const char* >( upload_op.get_contract_id().get_const() ), upload_op.get_contract_id().get_length() );
+
+            // We're uploading the current governance contract
+            if ( contract_id == system::get_contract_id() )
+               return true;
+         }
+         break;
+
+         case operation::FieldNumber::CALL_CONTRACT:
+         break;
+
+         case operation::FieldNumber::SET_SYSTEM_CALL:
+         {
+            const auto& set_system_call_op = op.get_set_system_call();
+
+            // The governance contract is called during the pre_block_callback, so it is just as dangerous
+            // to allow for this system call to be overridden
+            if ( set_system_call_op.get_call_id().get() == std::underlying_type_t< koinos::chain::system_call_id >( koinos::chain::system_call_id::pre_block_callback ) )
+               return true;
+         }
+         break;
+
+         case operation::FieldNumber::SET_SYSTEM_CONTRACT:
+         {
+            const auto& set_system_contract_op = op.get_set_system_contract();
+
+            std::string contract_id( reinterpret_cast< const char* >( set_system_contract_op.get_contract_id().get_const() ), set_system_contract_op.get_contract_id().get_length() );
+
+            // We're setting the system status of the governance contract
+            if ( contract_id == system::get_contract_id() )
+               return true;
+         }
+         break;
+
+         default:
+         break;
+      }
+   }
+
+   return false;
+}
+
 submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 {
    submit_proposal_result res;
@@ -214,11 +300,16 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
    prec.set_shall_authorize( false );
    prec.set_status( governance::proposal_status::pending );
 
-   if ( !system::put_object( state::proposal_space(), id, prec ) )
-   {
-      system::log( "Unable to store proposal in database" );
-      return res;
-   }
+   if ( proposal_updates_governance( prec.get_proposal() ) )
+      prec.set_vote_threshold( constants::active_period * constants::governance_threshold / 100 );
+   else
+      prec.set_vote_threshold( constants::active_period * constants::application_threshold / 100 );
+
+   system::put_object( state::proposal_space(), id, prec );
+
+   proposal_submission_event pevent;
+   pevent.set_proposal( prec );
+   koinos::system::event( "proposal.submission", pevent );
 
    res.set_value( true );
    return res;
