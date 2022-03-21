@@ -319,6 +319,12 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
    uint64_t value = args.get_value();
 
+   const auto [ caller, privilege ] = system::get_caller();
+   if ( caller != from )
+   {
+      system::require_authority( from );
+   }
+
    token::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
 
