@@ -69,6 +69,8 @@ using process_block_signature_arguments = koinos::chain::process_block_signature
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_hash_size,
       koinos::system::detail::max_address_size,
+      koinos::system::detail::max_proposal_length,
+      koinos::system::detail::max_hash_size,
       constants::max_proof_size >;
 
 template< uint32_t MAX_LENGTH >

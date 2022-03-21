@@ -14,10 +14,10 @@ using namespace std::string_literals;
 
 namespace constants {
 
-const uint64_t proposal_space_id = 0;
-const auto contract_id           = system::get_contract_id();
-const std::string koin_contract  = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
-
+const uint64_t proposal_space_id   = 0;
+const auto contract_id             = system::get_contract_id();
+const std::string koin_contract    = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
+constexpr uint64_t blocks_per_week = uint64_t( 604800 ) / uint64_t( 10 );
 } // constants
 
 namespace state {
@@ -182,6 +182,45 @@ using block_callback_result = koinos::contracts::governance::block_callback_resu
 submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 {
    submit_proposal_result res;
+   res.set_value( false );
+
+   auto payer = koinos::system::get_transaction_field( "header.payer" );
+
+   // Burn proposal fee
+   auto koin_token = koinos::token( constants::koin_contract );
+
+   if ( !koin_token.burn( payer.string_value(), args.get_fee() ) )
+   {
+      system::log( "Could not burn KOIN for proposal submission" );
+      return res;
+   }
+
+   std::string id( reinterpret_cast< const char* >( args.get_proposal().get_id().get_const() ), args.get_proposal().get_id().get_length() );
+
+   auto block_height = koinos::system::get_block_field( "header.height" );
+
+   proposal_record prec;
+
+   if ( system::get_object( state::proposal_space(), id, prec ) )
+   {
+      system::log( "Proposals exists and cannot be updated" );
+      return res;
+   }
+
+   prec.set_id( args.get_proposal().get_id() );
+   prec.set_proposal( args.get_proposal() );
+   prec.set_vote_start_height( block_height.uint64_value() + constants::blocks_per_week );
+   prec.set_vote_tally( 0 );
+   prec.set_shall_authorize( false );
+   prec.set_status( governance::proposal_status::pending );
+
+   if ( !system::put_object( state::proposal_space(), id, prec ) )
+   {
+      system::log( "Unable to store proposal in database" );
+      return res;
+   }
+
+   res.set_value( true );
    return res;
 }
 
