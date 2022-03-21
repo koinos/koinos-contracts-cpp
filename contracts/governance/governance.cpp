@@ -203,7 +203,7 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 
    if ( system::get_object( state::proposal_space(), id, prec ) )
    {
-      system::log( "Proposals exists and cannot be updated" );
+      system::log( "Proposal exists and cannot be updated" );
       return res;
    }
 
