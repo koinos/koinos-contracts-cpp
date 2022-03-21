@@ -60,7 +60,6 @@ enum entries : uint32_t
 const uint64_t max_proposal_limit = 10;
 
 using proposal_record = koinos::contracts::governance::proposal_record<
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -104,7 +103,6 @@ using block_callback_arguments = koinos::contracts::governance::block_callback_a
 
 using submit_proposal_result = koinos::contracts::governance::submit_proposal_result;
 using get_proposal_by_id_result = koinos::contracts::governance::get_proposal_by_id_result<
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -124,7 +122,6 @@ using get_proposal_by_id_result = koinos::contracts::governance::get_proposal_by
 
 using get_proposals_by_status_result = koinos::contracts::governance::get_proposals_by_status_result<
    max_proposal_limit,
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -144,7 +141,6 @@ using get_proposals_by_status_result = koinos::contracts::governance::get_propos
 
 using get_proposals_by_status_result = koinos::contracts::governance::get_proposals_by_status_result<
    max_proposal_limit,
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -164,7 +160,6 @@ using get_proposals_by_status_result = koinos::contracts::governance::get_propos
 
 using get_proposals_result = koinos::contracts::governance::get_proposals_result<
    max_proposal_limit,
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -183,18 +178,7 @@ using get_proposals_result = koinos::contracts::governance::get_proposals_result
    system::detail::max_signature_size >;    // proposal.signatures
 
 using block_callback_result = koinos::contracts::governance::block_callback_result;
-
-using operation = koinos::protocol::operation<
-   system::detail::max_address_size,        // transactions.upload_contract.contract_id
-   system::detail::max_contract_size,       // transactions.upload_contract.bytecode
-   system::detail::max_contract_size,       // transactions.upload_contract.abi
-   system::detail::max_address_size,        // transactions.call_contract.contract_id
-   system::detail::max_argument_size,       // transactions.call_contract.args
-   system::detail::max_argument_size,       // transactions.set_system_call.target.system_call_bundle.contract_id
-   system::detail::max_address_size >;      // transactions.set_system_contract.contract_id
-
 using proposal_submission_event = koinos::contracts::governance::proposal_submission_event<
-   system::detail::max_hash_size,           // id
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
    system::detail::max_nonce_size,          // proposal.header.nonce
@@ -219,7 +203,7 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
       const auto& op = proposal.get_operations().get_const( i );
       switch( op.get_which_op() )
       {
-         case operation::FieldNumber::UPLOAD_CONTRACT:
+         case koinos::system::operation::FieldNumber::UPLOAD_CONTRACT:
          {
             const auto& upload_op = op.get_upload_contract();
 
@@ -231,10 +215,10 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
          }
          break;
 
-         case operation::FieldNumber::CALL_CONTRACT:
+         case koinos::system::operation::FieldNumber::CALL_CONTRACT:
          break;
 
-         case operation::FieldNumber::SET_SYSTEM_CALL:
+         case koinos::system::operation::FieldNumber::SET_SYSTEM_CALL:
          {
             const auto& set_system_call_op = op.get_set_system_call();
 
@@ -245,7 +229,7 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
          }
          break;
 
-         case operation::FieldNumber::SET_SYSTEM_CONTRACT:
+         case koinos::system::operation::FieldNumber::SET_SYSTEM_CONTRACT:
          {
             const auto& set_system_contract_op = op.get_set_system_contract();
 
@@ -293,7 +277,6 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
       return res;
    }
 
-   prec.set_id( args.get_proposal().get_id() );
    prec.set_proposal( args.get_proposal() );
    prec.set_vote_start_height( block_height.uint64_value() + constants::blocks_per_week );
    prec.set_vote_tally( 0 );
