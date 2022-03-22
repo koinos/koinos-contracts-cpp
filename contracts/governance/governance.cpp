@@ -6,6 +6,7 @@
 #include <koinos/common.h>
 
 #include <string>
+#include <functional>
 
 using namespace koinos;
 using namespace koinos::contracts;
@@ -253,6 +254,38 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
    return false;
 }
 
+std::vector< proposal_record > retrieve_proposals(
+   std::function< bool( const proposal_record& ) > predicate = []( const proposal_record& ) { return true; },
+   uint64_t limit = std::numeric_limits< uint64_t >::max() )
+{
+   std::vector< proposal_record > proposals;
+
+   auto obj_bytes = system::get_next_object( state::proposal_space(), std::string{} );
+   koinos::chain::database_object< system::detail::max_argument_size, system::detail::max_key_size > obj;
+   koinos::read_buffer rbuf( reinterpret_cast< const uint8_t* >( obj_bytes.data() ), obj_bytes.size() );
+
+   obj.deserialize( rbuf );
+
+   while ( obj.get_exists() )
+   {
+      koinos::read_buffer rdbuf( obj.get_value().get_const(), obj.get_value().get_length() );
+
+      proposal_record prec;
+      prec.deserialize( rdbuf );
+
+      if ( predicate( prec ) )
+         proposals.push_back( std::move( prec ) );
+
+      std::string next_key( reinterpret_cast< const char* >( obj.get_key().get_const() ), obj.get_key().get_length() );
+      obj_bytes = system::get_next_object( state::proposal_space(), next_key );
+
+      koinos::read_buffer rbuf( reinterpret_cast< const uint8_t* >( obj_bytes.data() ), obj_bytes.size() );
+      obj.deserialize( rbuf );
+   }
+
+   return proposals;
+}
+
 submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 {
    submit_proposal_result res;
@@ -315,25 +348,171 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
 get_proposal_by_id_result get_proposal_by_id( const get_proposal_by_id_arguments& args )
 {
    get_proposal_by_id_result res;
+
+   std::string id( reinterpret_cast< const char* >( args.get_proposal_id().get_const() ), args.get_proposal_id().get_length() );
+
+   proposal_record prec;
+
+   if ( !koinos::system::get_object( state::proposal_space(), id, prec ) )
+   {
+      koinos::system::log( "Unable to find proposal" );
+      return res;
+   }
+
+   res.set_value( prec );
+
    return res;
 }
 
 get_proposals_by_status_result get_proposals_by_status( const get_proposals_by_status_arguments& args )
 {
    get_proposals_by_status_result res;
+
+   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return args.get_status() == p.get_status(); }, args.get_limit() );
+
+   for ( const auto& p : proposals )
+      res.add_proposals( p );
+
    return res;
 }
 
 get_proposals_result get_proposals( const get_proposals_arguments& args )
 {
    get_proposals_result res;
+
+   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return true; }, args.get_limit() );
+
+   for ( const auto& p : proposals )
+      res.add_proposals( p );
+
    return res;
 }
 
-block_callback_result block_callback( const block_callback_arguments& )
+void handle_pending_proposal( proposal_record& p, uint64_t current_height )
 {
-   block_callback_result res;
-   return res;
+   if ( p.get_vote_start_height() != current_height )
+      return;
+
+   std::string id( reinterpret_cast< const char* >( p.get_proposal().get_id().get_const() ), p.get_proposal().get_id().get_length() );
+   p.set_status( governance::proposal_status::active );
+   system::put_object( state::proposal_space(), id, p );
+
+   governance::proposal_status_event< system::detail::max_hash_size > pevent;
+   pevent.set_id( p.get_proposal().get_id() );
+   pevent.set_status( p.get_status() );
+   system::event( "proposal.status", pevent );
+}
+
+void handle_active_proposal( proposal_record& p, uint64_t current_height )
+{
+   if ( p.get_vote_start_height() + constants::vote_period != current_height )
+      return;
+
+   std::string id( reinterpret_cast< const char* >( p.get_proposal().get_id().get_const() ), p.get_proposal().get_id().get_length() );
+
+   if ( p.get_vote_tally() < p.get_vote_threshold() )
+   {
+      p.set_status( governance::proposal_status::expired );
+
+      governance::proposal_status_event< system::detail::max_hash_size > pevent;
+      pevent.set_id( p.get_proposal().get_id() );
+      pevent.set_status( p.get_status() );
+      system::event( "proposal.status", pevent );
+
+      system::detail::remove_object( state::proposal_space(), id );
+   }
+   else
+   {
+      p.set_status( governance::proposal_status::approved );
+      system::put_object( state::proposal_space(), id, p );
+
+      governance::proposal_status_event< system::detail::max_hash_size > pevent;
+      pevent.set_id( p.get_proposal().get_id() );
+      pevent.set_status( p.get_status() );
+      system::event( "proposal.status", pevent );
+   }
+}
+
+void handle_approved_proposal( proposal_record& p, uint64_t current_height )
+{
+   if ( p.get_vote_start_height() + constants::vote_period + constants::application_delay != current_height )
+      return;
+
+   std::string id( reinterpret_cast< const char* >( p.get_proposal().get_id().get_const() ), p.get_proposal().get_id().get_length() );
+
+   p.set_shall_authorize( true );
+   system::put_object( state::proposal_space(), id, p );
+
+   system::apply_transaction( p.get_proposal() );
+
+   system::detail::remove_object( state::proposal_space(), id );
+}
+
+void handle_votes()
+{
+   auto proposal_votes_message = system::get_block_field( "header.approved_proposals" ).message_value();
+   chain::list_type< 32, 64, system::detail::max_hash_size > proposal_votes;
+   proposal_votes_message.UnpackTo( proposal_votes );
+
+   for ( uint64_t i = 0 ; i < proposal_votes.get_values().get_length(); i++ )
+   {
+      auto proposal_vote = proposal_votes.get_values().get_const( i ).get_bytes_value();
+      std::string id( reinterpret_cast< const char* >( proposal_vote.get_const() ), proposal_vote.get_length() );
+
+      proposal_record prec;
+
+      if ( !system::get_object( state::proposal_space(), id, prec ) )
+         continue;
+
+      if ( prec.get_status() != governance::proposal_status::active )
+         continue;
+
+      auto current_vote_tally = prec.get_vote_tally();
+      if ( current_vote_tally != std::numeric_limits< uint64_t >::max() )
+         prec.set_vote_tally( current_vote_tally + 1 );
+
+      system::put_object( state::proposal_space(), id, prec );
+
+      governance::proposal_vote_event< system::detail::max_hash_size > pevent;
+      pevent.set_id( prec.get_proposal().get_id() );
+      pevent.set_vote_tally( prec.get_vote_tally() );
+      pevent.set_vote_threshold( prec.get_vote_threshold() );
+      system::event( "proposal.vote", pevent );
+   }
+}
+
+void block_callback()
+{
+   const auto [ caller, privilege ] = system::get_caller();
+   if ( privilege != chain::privilege::kernel_mode )
+   {
+      system::log( "Governance contract block callback must be called from kernel" );
+      system::exit_contract( 1 );
+   }
+
+   handle_votes();
+
+   auto current_height = system::get_block_field( "header.height" ).uint64_value();
+   auto proposals = retrieve_proposals();
+
+   for ( auto& p : proposals )
+   {
+      switch ( p.get_status() )
+      {
+      case governance::proposal_status::pending:
+         handle_pending_proposal( p, current_height );
+         break;
+      case governance::proposal_status::active:
+         handle_active_proposal( p, current_height );
+         break;
+      case governance::proposal_status::approved:
+         handle_approved_proposal( p, current_height );
+         break;
+      default:
+         system::log( "Attempted to handle unexpected proposal status" );
+         break;
+      }
+   }
 }
 
 int main()
@@ -385,11 +564,11 @@ int main()
       }
       case entries::block_callback_entry:
       {
-         block_callback_arguments args;
-         block_callback( args );
+         block_callback();
          break;
       }
       default:
+         system::log( "Governance contract called with unknown entry point" );
          system::exit_contract( 1 );
    }
 
