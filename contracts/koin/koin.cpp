@@ -346,14 +346,15 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    from_bal_obj.set_mana( from_bal_obj.mana() - value );
 
    auto supply = total_supply().get_value();
-   auto new_supply = supply - value;
 
    // Check underflow
-   if ( new_supply >= 0 )
+   if ( value <= supply )
    {
       system::log( "Burn would underflow supply" );
       return res;
    }
+
+   auto new_supply = supply - value;
 
    token::balance_object supply_obj;
    supply_obj.set_value( new_supply );
