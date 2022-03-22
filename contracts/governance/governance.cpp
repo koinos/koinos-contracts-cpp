@@ -419,7 +419,7 @@ void handle_active_proposal( proposal_record& p, uint64_t current_height )
       pevent.set_status( p.get_status() );
       system::event( "proposal.status", pevent );
 
-      system::detail::remove_object( state::proposal_space(), id );
+      system::remove_object( state::proposal_space(), id );
    }
    else
    {
@@ -445,7 +445,7 @@ void handle_approved_proposal( proposal_record& p, uint64_t current_height )
 
    system::apply_transaction( p.get_proposal() );
 
-   system::detail::remove_object( state::proposal_space(), id );
+   system::remove_object( state::proposal_space(), id );
 }
 
 void handle_votes()
