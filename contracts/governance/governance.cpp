@@ -105,8 +105,6 @@ using get_proposal_by_id_arguments = koinos::contracts::governance::get_proposal
 using get_proposals_by_status_arguments = koinos::contracts::governance::get_proposals_by_status_arguments< system::detail::max_hash_size >;
 using get_proposals_arguments = koinos::contracts::governance::get_proposals_arguments< system::detail::max_hash_size >;
 
-using block_callback_arguments = koinos::contracts::governance::block_callback_arguments;
-
 using submit_proposal_result = koinos::contracts::governance::submit_proposal_result;
 using get_proposal_by_id_result = koinos::contracts::governance::get_proposal_by_id_result<
    system::detail::max_hash_size,           // proposal.id
@@ -183,7 +181,6 @@ using get_proposals_result = koinos::contracts::governance::get_proposals_result
    system::detail::max_signatures_length,   // proposal.signatures length
    system::detail::max_signature_size >;    // proposal.signatures
 
-using block_callback_result = koinos::contracts::governance::block_callback_result;
 using proposal_submission_event = koinos::contracts::governance::proposal_submission_event<
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
@@ -337,9 +334,15 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
    prec.set_status( governance::proposal_status::pending );
 
    if ( proposal_updates_governance( prec.get_proposal() ) )
+   {
+      prec.set_updates_governance( true );
       prec.set_vote_threshold( constants::vote_period * constants::governance_threshold / 100 );
+   }
    else
+   {
+      prec.set_updates_governance( false );
       prec.set_vote_threshold( constants::vote_period * constants::standard_threshold / 100 );
+   }
 
    system::put_object( state::proposal_space(), id, prec );
 
@@ -377,7 +380,7 @@ get_proposals_by_status_result get_proposals_by_status( const get_proposals_by_s
    auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return args.get_status() == p.get_status(); }, args.get_limit() );
 
    for ( const auto& p : proposals )
-      res.add_proposals( p );
+      res.add_value( p );
 
    return res;
 }
@@ -389,7 +392,7 @@ get_proposals_result get_proposals( const get_proposals_arguments& args )
    auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return true; }, args.get_limit() );
 
    for ( const auto& p : proposals )
-      res.add_proposals( p );
+      res.add_value( p );
 
    return res;
 }
@@ -450,8 +453,14 @@ void handle_approved_proposal( proposal_record& p, uint64_t current_height )
    system::put_object( state::proposal_space(), id, p );
 
    system::apply_transaction( p.get_proposal() );
+   p.set_status( governance::proposal_status::applied );
 
    system::remove_object( state::proposal_space(), id );
+
+   governance::proposal_status_event< system::detail::max_hash_size > pevent;
+   pevent.set_id( p.get_proposal().get_id() );
+   pevent.set_status( p.get_status() );
+   system::event( "proposal.status", pevent );
 }
 
 void handle_votes()
