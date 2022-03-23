@@ -59,7 +59,8 @@ enum entries : uint32_t
    get_proposal_by_id_entry      = 0xc66013ad,
    get_proposals_by_status_entry = 0x66206f76,
    get_proposals_entry           = 0xd44caa11,
-   block_callback_entry          = 0x531d5d4e
+   block_callback_entry          = 0x531d5d4e,
+   authorize_entry               = 0x4a2dbd90
 };
 
 const uint64_t max_proposal_limit = 10;
@@ -520,6 +521,26 @@ void block_callback()
    }
 }
 
+koinos::chain::authorize_result authorize( const koinos::chain::authorize_arguments< system::detail::max_hash_size >& args )
+{
+   koinos::chain::authorize_result res;
+   res.set_value( false );
+
+   if ( args.get_type() == koinos::chain::authorization_type::transaction_application )
+   {
+      auto transaction_id_bytes = koinos::system::get_transaction_field( "header.id" ).get_bytes_value();
+      std::string transaction_id( reinterpret_cast< const char* >( transaction_id_bytes.get_const() ), transaction_id_bytes.get_length() );
+
+      proposal_record prec;
+
+      if ( koinos::system::get_object( state::proposal_space(), transaction_id, prec ) )
+         if ( prec.shall_authorize() )
+            res.set_value( true );
+   }
+
+   return res;
+}
+
 int main()
 {
    auto entry_point = system::get_entry_point();
@@ -566,10 +587,20 @@ int main()
 
          auto res = get_proposals( arg );
          res.serialize( buffer );
+         break;
       }
       case entries::block_callback_entry:
       {
          block_callback();
+         break;
+      }
+      case entries::authorize_entry:
+      {
+         koinos::chain::authorize_arguments< system::detail::max_hash_size > args;
+         args.deserialize( rdbuf );
+
+         auto res = authorize( args );
+         res.serialize( buffer );
          break;
       }
       default:
