@@ -227,10 +227,15 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
          {
             const auto& set_system_call_op = op.get_set_system_call();
 
-            // The governance contract is called during the pre_block_callback, so it is just as dangerous
-            // to allow for this system call to be overridden
-            if ( set_system_call_op.get_call_id().get() == std::underlying_type_t< koinos::chain::system_call_id >( koinos::chain::system_call_id::pre_block_callback ) )
-               return true;
+            std::vector< koinos::chain::system_call_id > governance_syscalls;
+            governance_syscalls.push_back( koinos::chain::system_call_id::pre_block_callback );
+            governance_syscalls.push_back( koinos::chain::system_call_id::require_system_authority );
+            governance_syscalls.push_back( koinos::chain::system_call_id::apply_set_system_call_operation );
+            governance_syscalls.push_back( koinos::chain::system_call_id::apply_set_system_contract_operation );
+
+            for ( const auto& syscall : governance_syscalls )
+               if ( set_system_call_op.get_call_id().get() == std::underlying_type_t< koinos::chain::system_call_id >( syscall ) )
+                  return true;
          }
          break;
 
