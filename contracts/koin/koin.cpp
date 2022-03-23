@@ -28,6 +28,9 @@ constexpr uint32_t balance_id          = 1;
 std::string supply_key                 = "";
 const auto contract_id                 = system::get_contract_id();
 
+// 0x003c1756c0acf3b692631246da147ba66947b790eed4069e63 (16UjW8AKzuuePiRwmkvVDjuZvT2xksXb8N)
+const std::string governance_contract  = "\x00\x3c\x17\x56\xc0\xac\xf3\xb6\x92\x63\x12\x46\xda\x14\x7b\xa6\x69\x47\xb7\x90\xee\xd4\x06\x9e\x63"s;
+
 } // constants
 
 namespace state {
@@ -107,12 +110,19 @@ void regenerate_mana( token::mana_balance_object& bal )
 chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& args )
 {
    std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   chain::get_account_rc_result res;
+
+   if ( owner == constants::governance_contract )
+   {
+      res.set_value( std::numeric_limits< uint64_t >::max() );
+      return res;
+   }
+
    token::mana_balance_object bal_obj;
    system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
 
-   chain::get_account_rc_result res;
    res.set_value( bal_obj.get_mana() );
    return res;
 }
