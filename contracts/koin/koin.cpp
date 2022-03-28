@@ -11,6 +11,8 @@
 using namespace koinos;
 using namespace koinos::contracts;
 
+using namespace std::string_literals;
+
 using int128_t = boost::multiprecision::int128_t;
 
 namespace constants {
