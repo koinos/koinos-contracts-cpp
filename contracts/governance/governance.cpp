@@ -307,6 +307,7 @@ submit_proposal_result submit_proposal( const submit_proposal_arguments& args )
       err_msg += "threshold: " + std::to_string( fee ) + ", ";
       err_msg += "actual: " + std::to_string( args.get_fee() );
       system::log( err_msg );
+      return res;
    }
 
    if ( !koin_token.burn( payer.string_value(), args.get_fee() ) )
