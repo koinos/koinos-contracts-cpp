@@ -259,16 +259,22 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
 
 std::vector< proposal_record > retrieve_proposals(
    std::function< bool( const proposal_record& ) > predicate = []( const proposal_record& ) { return true; },
-   uint64_t limit = std::numeric_limits< uint64_t >::max() )
+   uint64_t limit = 0,
+   std::string start_proposal = std::string{} )
 {
    std::vector< proposal_record > proposals;
 
-   auto obj_bytes = system::get_next_object( state::proposal_space(), std::string{} );
+   // No limit
+   if ( !limit )
+      limit = std::numeric_limits< uint64_t >::max();
+
+   auto obj_bytes = system::get_next_object( state::proposal_space(), start_proposal );
    koinos::chain::database_object< system::detail::max_argument_size, system::detail::max_key_size > obj;
    koinos::read_buffer rbuf( reinterpret_cast< const uint8_t* >( obj_bytes.data() ), obj_bytes.size() );
 
    obj.deserialize( rbuf );
 
+   std::size_t num_proposals = 0;
    while ( obj.get_exists() )
    {
       koinos::read_buffer rdbuf( obj.get_value().get_const(), obj.get_value().get_length() );
@@ -277,7 +283,13 @@ std::vector< proposal_record > retrieve_proposals(
       prec.deserialize( rdbuf );
 
       if ( predicate( prec ) )
+      {
          proposals.push_back( std::move( prec ) );
+         num_proposals++;
+
+         if ( num_proposals >= limit )
+            break;
+      }
 
       std::string next_key( reinterpret_cast< const char* >( obj.get_key().get_const() ), obj.get_key().get_length() );
       obj_bytes = system::get_next_object( state::proposal_space(), next_key );
@@ -378,7 +390,9 @@ get_proposals_by_status_result get_proposals_by_status( const get_proposals_by_s
 {
    get_proposals_by_status_result res;
 
-   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return args.get_status() == p.get_status(); }, args.get_limit() );
+   std::string start( reinterpret_cast< const char* >( args.get_start_proposal().get_const() ), args.get_start_proposal().get_length() );
+
+   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return args.get_status() == p.get_status(); }, args.get_limit(), start );
 
    for ( const auto& p : proposals )
       res.add_value( p );
@@ -390,7 +404,9 @@ get_proposals_result get_proposals( const get_proposals_arguments& args )
 {
    get_proposals_result res;
 
-   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return true; }, args.get_limit() );
+   std::string start( reinterpret_cast< const char* >( args.get_start_proposal().get_const() ), args.get_start_proposal().get_length() );
+
+   auto proposals = retrieve_proposals( [&]( const proposal_record& p ) { return true; }, args.get_limit(), start );
 
    for ( const auto& p : proposals )
       res.add_value( p );
