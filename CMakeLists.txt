@@ -22,6 +22,8 @@ project(koinos_system_contracts VERSION 0.1.0 LANGUAGES CXX)
 #    endif ()
 #endif ()
 
+option(TEST_ADDRESSES "Build contracts with test addresses" OFF)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 #set(CMAKE_CXX_STANDARD 17)
@@ -43,4 +45,3 @@ if(${CMAKE_GENERATOR} MATCHES "Xcode")
 endif()
 
 add_subdirectory(contracts)
-
