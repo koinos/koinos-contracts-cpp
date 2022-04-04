@@ -284,11 +284,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    if ( privilege != chain::privilege::kernel_mode )
    {
 #ifdef BUILD_FOR_TESTING
-      if ( caller != constants::contract_id )
-      {
-         system::log( "Can only mint token from kernel context or from the koin address" );
-         return res;
-      }
+      system::require_authority( constants::contract_id );
 #else
       system::log( "Can only mint token from kernel context" );
       return res;
