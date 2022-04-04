@@ -270,8 +270,16 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
+#ifdef BUILD_FOR_TESTING
+      if ( caller != constants::contract_id )
+      {
+         system::log( "Can only mint token from kernel context or from the koin address" );
+         return res;
+      }
+#else
       system::log( "Can only mint token from kernel context" );
       return res;
+#endif
    }
 
    auto supply = total_supply().get_value();

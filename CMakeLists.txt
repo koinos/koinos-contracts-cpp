@@ -22,6 +22,8 @@ project(koinos_system_contracts VERSION 0.1.0 LANGUAGES CXX)
 #    endif ()
 #endif ()
 
+option(BUILD_FOR_TESTING "Build contracts with test addresses" OFF)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 #set(CMAKE_CXX_STANDARD 17)
@@ -42,5 +44,10 @@ if(${CMAKE_GENERATOR} MATCHES "Xcode")
   set(CMAKE_XCODE_GENERATE_SCHEME YES)
 endif()
 
-add_subdirectory(contracts)
+if(BUILD_FOR_TESTING)
+  message(STATUS "Building contracts for testing")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBUILD_FOR_TESTING")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DBUILD_FOR_TESTING")
+endif()
 
+add_subdirectory(contracts)
