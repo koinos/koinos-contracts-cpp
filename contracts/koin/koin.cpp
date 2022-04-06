@@ -364,7 +364,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    auto supply = total_supply().get_value();
 
    // Check underflow
-   if ( value <= supply )
+   if ( value > supply )
    {
       system::log( "Burn would underflow supply" );
       return res;
