@@ -73,6 +73,9 @@ enum entries : uint32_t
 
 const uint64_t max_proposal_limit = 10;
 
+using block_callback_arguments = koinos::contracts::governance::block_callback_arguments;
+using block_callback_result = koinos::contracts::governance::block_callback_result;
+
 using proposal_record = koinos::contracts::governance::proposal_record<
    system::detail::max_hash_size,           // proposal.id
    system::detail::max_hash_size,           // proposal.header.chain_id
@@ -521,8 +524,9 @@ void handle_votes()
    }
 }
 
-void block_callback()
+block_callback_result block_callback()
 {
+   block_callback_result res;
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
@@ -553,6 +557,7 @@ void block_callback()
          break;
       }
    }
+   return res;
 }
 
 koinos::chain::authorize_result authorize( const koinos::chain::authorize_arguments< system::detail::max_hash_size >& args )
@@ -625,7 +630,8 @@ int main()
       }
       case entries::block_callback_entry:
       {
-         block_callback();
+         auto res = block_callback();
+         res.serialize( buffer );
          break;
       }
       case entries::authorize_entry:
@@ -640,6 +646,7 @@ int main()
       default:
          system::log( "Governance contract called with unknown entry point" );
          system::exit_contract( 1 );
+         break;
    }
 
    std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
