@@ -11,6 +11,8 @@
 using namespace koinos;
 using namespace koinos::contracts;
 
+using namespace std::string_literals;
+
 using int128_t = boost::multiprecision::int128_t;
 
 namespace constants {
@@ -27,6 +29,9 @@ constexpr uint32_t supply_id           = 0;
 constexpr uint32_t balance_id          = 1;
 std::string supply_key                 = "";
 const auto contract_id                 = system::get_contract_id();
+
+// 0x003c1756c0acf3b692631246da147ba66947b790eed4069e63 (16UjW8AKzuuePiRwmkvVDjuZvT2xksXb8N)
+const std::string governance_contract  = "\x00\x3c\x17\x56\xc0\xac\xf3\xb6\x92\x63\x12\x46\xda\x14\x7b\xa6\x69\x47\xb7\x90\xee\xd4\x06\x9e\x63"s;
 
 } // constants
 
@@ -78,7 +83,8 @@ enum entries : uint32_t
    total_supply_entry       = 0xb0da3934,
    balance_of_entry         = 0x5c721497,
    transfer_entry           = 0x27f576ca,
-   mint_entry               = 0xdc6f17bb
+   mint_entry               = 0xdc6f17bb,
+   burn_entry               = 0x859facc5
 };
 
 using get_account_rc_arguments
@@ -106,12 +112,19 @@ void regenerate_mana( token::mana_balance_object& bal )
 chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& args )
 {
    std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
+   chain::get_account_rc_result res;
+
+   if ( owner == constants::governance_contract )
+   {
+      res.set_value( std::numeric_limits< uint64_t >::max() );
+      return res;
+   }
+
    token::mana_balance_object bal_obj;
    system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
 
-   chain::get_account_rc_result res;
    res.set_value( bal_obj.get_mana() );
    return res;
 }
@@ -271,11 +284,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    if ( privilege != chain::privilege::kernel_mode )
    {
 #ifdef BUILD_FOR_TESTING
-      if ( caller != constants::contract_id )
-      {
-         system::log( "Can only mint token from kernel context or from the koin address" );
-         return res;
-      }
+      system::require_authority( constants::contract_id );
 #else
       system::log( "Can only mint token from kernel context" );
       return res;
@@ -313,6 +322,69 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    std::vector< std::string > impacted;
    impacted.push_back( to );
    koinos::system::event( "koin.mint", mint_event, impacted );
+
+   res.set_value( true );
+   return res;
+}
+
+token::burn_result burn( const token::burn_arguments< constants::max_address_size >& args )
+{
+   token::burn_result res;
+   res.set_value( false );
+
+   std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
+   uint64_t value = args.get_value();
+
+   const auto [ caller, privilege ] = system::get_caller();
+   if ( caller != from )
+   {
+      system::require_authority( from );
+   }
+
+   token::mana_balance_object from_bal_obj;
+   system::get_object( state::balance_space(), from, from_bal_obj );
+
+   if ( from_bal_obj.balance() < value )
+   {
+      system::log( "Account 'from' has insufficient balance" );
+      return res;
+   }
+
+   regenerate_mana( from_bal_obj );
+
+   if ( from_bal_obj.mana() < value )
+   {
+      system::log( "Account 'from' has insufficient mana for burn" );
+      return res;
+   }
+
+   from_bal_obj.set_balance( from_bal_obj.balance() - value );
+   from_bal_obj.set_mana( from_bal_obj.mana() - value );
+
+   auto supply = total_supply().get_value();
+
+   // Check underflow
+   if ( value > supply )
+   {
+      system::log( "Burn would underflow supply" );
+      return res;
+   }
+
+   auto new_supply = supply - value;
+
+   token::balance_object supply_obj;
+   supply_obj.set_value( new_supply );
+
+   system::put_object( state::supply_space(), constants::supply_key, supply_obj );
+   system::put_object( state::balance_space(), from, from_bal_obj );
+
+   token::burn_event< constants::max_address_size > burn_event;
+   burn_event.mutable_from().set( args.get_from().get_const(), args.get_from().get_length() );
+   burn_event.set_value( args.get_value() );
+
+   std::vector< std::string > impacted;
+   impacted.push_back( from );
+   koinos::system::event( "koin.burn", burn_event, impacted );
 
    res.set_value( true );
    return res;
@@ -396,6 +468,15 @@ int main()
          arg.deserialize( rdbuf );
 
          auto res = mint( arg );
+         res.serialize( buffer );
+         break;
+      }
+      case entries::burn_entry:
+      {
+         token::burn_arguments< constants::max_address_size > arg;
+         arg.deserialize( rdbuf );
+
+         auto res = burn( arg );
          res.serialize( buffer );
          break;
       }
