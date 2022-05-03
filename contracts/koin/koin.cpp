@@ -223,10 +223,8 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    }
 
    const auto [ caller, privilege ] = system::get_caller();
-   if ( caller != from )
-   {
-      system::require_authority( from );
-   }
+   if ( caller != from && !system::check_authority( from ) )
+      system::revert( "from has not authorized transfer" );
 
    token::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
@@ -284,7 +282,8 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    if ( privilege != chain::privilege::kernel_mode )
    {
 #ifdef BUILD_FOR_TESTING
-      system::require_authority( constants::contract_id );
+      if( !system::check_authority( constants::contract_id ) )
+         revert();
 #else
       system::log( "Can only mint token from kernel context" );
       return res;
@@ -336,10 +335,8 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    uint64_t value = args.get_value();
 
    const auto [ caller, privilege ] = system::get_caller();
-   if ( caller != from )
-   {
-      system::require_authority( from );
-   }
+   if ( caller != from && !system::check_authority( from ) )
+      system::revert( "from has not authorized burn" );
 
    token::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
@@ -393,7 +390,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 int main()
 {
    auto entry_point = system::get_entry_point();
-   auto args = system::get_contract_arguments();
+   auto args = system::get_arguments();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
 
@@ -481,12 +478,13 @@ int main()
          break;
       }
       default:
-         system::exit_contract( 1 );
+         system::revert( "unknown entry point" );
    }
 
-   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-   system::set_contract_result_bytes( retval );
+   system::result r;
+   r.set_code( 0 );
+   r.mutable_value().set( buffer.data(), buffer.get_size() );
 
-   system::exit_contract( 0 );
+   system::exit( r );
    return 0;
 }
