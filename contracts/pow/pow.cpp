@@ -144,7 +144,7 @@ void update_difficulty( difficulty_metadata& diff_meta, uint64_t current_block_t
 
 int main()
 {
-   auto entry_point = system::get_entry_point();
+   auto [entry_point, argstr] = system::get_arguments();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
    koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
@@ -154,8 +154,11 @@ int main()
       get_difficulty_metadata_result res;
       res.set_value( get_difficulty_meta() );
       res.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_result_bytes( retval );
+
+      system::result r;
+      r.set_code( 0 );
+      r.mutable_value().set( buffer.data(), buffer.get_size() );
+      system::exit ( r );
       return 0;
    }
 
@@ -167,8 +170,11 @@ int main()
    {
       system::log( "Testnet has ended" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_result_bytes( retval );
+      
+      system::result r;
+      r.set_code( 0 );
+      r.mutable_value().set( buffer.data(), buffer.get_size() );
+      system::exit ( r );
       return 0;
    }
 
@@ -177,12 +183,14 @@ int main()
    {
       system::log( "PoW contract must be called from kernel" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_result_bytes( retval );
+
+      system::result r;
+      r.set_code( 0 );
+      r.mutable_value().set( buffer.data(), buffer.get_size() );
+      system::exit ( r );
       return 0;
    }
 
-   auto argstr = system::get_contract_arguments();
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
    process_block_signature_arguments args;
    args.deserialize( rdbuf );
@@ -204,8 +212,11 @@ int main()
    {
       system::log( "PoW did not meet target" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_result_bytes( retval );
+
+      system::result r;
+      r.set_code( 0 );
+      r.mutable_value().set( buffer.data(), buffer.get_size() );
+      system::exit ( r );
       return 0;
    }
 
@@ -222,8 +233,11 @@ int main()
    {
       system::log( "Signature and signer are mismatching" );
       ret.serialize( buffer );
-      std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-      system::set_contract_result_bytes( retval );
+
+      system::result r;
+      r.set_code( 0 );
+      r.mutable_value().set( buffer.data(), buffer.get_size() );
+      system::exit ( r );
       return 0;
    }
 
@@ -239,9 +253,10 @@ int main()
    ret.set_value( success );
 
    ret.serialize( buffer );
-   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-
-   system::set_contract_result_bytes( retval );
-
+   
+   system::result r;
+   r.set_code( 0 );
+   r.mutable_value().set( buffer.data(), buffer.get_size() );
+   system::exit ( r );
    return 0;
 }

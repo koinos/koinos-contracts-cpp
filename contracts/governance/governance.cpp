@@ -238,7 +238,7 @@ bool proposal_updates_governance( const koinos::system::transaction& proposal )
 
             std::vector< koinos::chain::system_call_id > governance_syscalls;
             governance_syscalls.push_back( koinos::chain::system_call_id::pre_block_callback );
-            governance_syscalls.push_back( koinos::chain::system_call_id::require_system_authority );
+            governance_syscalls.push_back( koinos::chain::system_call_id::check_system_authority );
             governance_syscalls.push_back( koinos::chain::system_call_id::apply_set_system_call_operation );
             governance_syscalls.push_back( koinos::chain::system_call_id::apply_set_system_contract_operation );
 
@@ -531,7 +531,7 @@ block_callback_result block_callback()
    if ( privilege != chain::privilege::kernel_mode )
    {
       system::log( "Governance contract block callback must be called from kernel" );
-      system::exit_contract( 1 );
+      system::exit( 1 );
    }
 
    handle_votes();
@@ -582,8 +582,7 @@ koinos::chain::authorize_result authorize( const koinos::chain::authorize_argume
 
 int main()
 {
-   auto entry_point = system::get_entry_point();
-   auto args = system::get_contract_arguments();
+   auto [entry_point, args] = system::get_arguments();
 
    std::array< uint8_t, koinos::system::detail::max_buffer_size > retbuf;
 
@@ -645,13 +644,14 @@ int main()
       }
       default:
          system::log( "Governance contract called with unknown entry point" );
-         system::exit_contract( 1 );
+         system::exit( 1 );
          break;
    }
 
-   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-   system::set_contract_result_bytes( retval );
+   system::result r;
+   r.set_code( 0 );
+   r.mutable_value().set( buffer.data(), buffer.get_size() );
 
-   system::exit_contract( 0 );
+   system::exit( r );
    return 0;
 }

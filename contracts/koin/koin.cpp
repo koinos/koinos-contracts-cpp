@@ -389,8 +389,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 
 int main()
 {
-   auto entry_point = system::get_entry_point();
-   auto args = system::get_arguments();
+   auto [entry_point, args] = system::get_arguments();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
 
