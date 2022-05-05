@@ -283,7 +283,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    {
 #ifdef BUILD_FOR_TESTING
       if( !system::check_authority( constants::contract_id ) )
-         revert();
+         system::revert();
 #else
       system::log( "Can only mint token from kernel context" );
       return res;
@@ -485,5 +485,4 @@ int main()
    r.mutable_value().set( buffer.data(), buffer.get_size() );
 
    system::exit( r );
-   return 0;
 }
