@@ -208,5 +208,7 @@ int main()
    r.set_code( 0 );
    r.mutable_value().set( buffer.data(), buffer.get_size() );
 
+   system::exit( r );
+
    return 0;
 }
