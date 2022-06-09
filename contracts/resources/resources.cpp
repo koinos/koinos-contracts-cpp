@@ -169,8 +169,7 @@ consume_block_resources_result consume_block_resources( const consume_block_reso
 
 int main()
 {
-   auto entry_point = system::get_entry_point();
-   auto args = system::get_contract_arguments();
+   auto [entry_point, args] = system::get_arguments();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
 
@@ -205,8 +204,11 @@ int main()
          return 1;
    }
 
-   std::string retval( reinterpret_cast< const char* >( buffer.data() ), buffer.get_size() );
-   system::set_contract_result_bytes( retval );
+   system::result r;
+   r.set_code( 0 );
+   r.mutable_value().set( buffer.data(), buffer.get_size() );
+
+   system::exit( r );
 
    return 0;
 }
