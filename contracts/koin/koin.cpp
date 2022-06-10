@@ -481,8 +481,7 @@ int main()
    }
 
    system::result r;
-   r.set_code( 0 );
-   r.mutable_value().set( buffer.data(), buffer.get_size() );
+   r.mutable_object().set( buffer.data(), buffer.get_size() );
 
-   system::exit( r );
+   system::exit( 0, r );
 }

@@ -156,10 +156,8 @@ int main()
       res.serialize( buffer );
 
       system::result r;
-      r.set_code( 0 );
-      r.mutable_value().set( buffer.data(), buffer.get_size() );
-      system::exit ( r );
-      return 0;
+      r.mutable_object().set( buffer.data(), buffer.get_size() );
+      system::exit( 0, r );
    }
 
    koinos::chain::process_block_signature_result ret;
@@ -168,27 +166,13 @@ int main()
    auto head_block_time = system::get_head_info().get_head_block_time();
    if ( uint64_t( head_block_time ) > constants::pow_end_date )
    {
-      system::log( "Testnet has ended" );
-      ret.serialize( buffer );
-      
-      system::result r;
-      r.set_code( 0 );
-      r.mutable_value().set( buffer.data(), buffer.get_size() );
-      system::exit ( r );
-      return 0;
+      system::revert( "Testnet has ended" );
    }
 
    const auto [ caller, privilege ] = system::get_caller();
    if ( privilege != chain::privilege::kernel_mode )
    {
-      system::log( "PoW contract must be called from kernel" );
-      ret.serialize( buffer );
-
-      system::result r;
-      r.set_code( 0 );
-      r.mutable_value().set( buffer.data(), buffer.get_size() );
-      system::exit ( r );
-      return 0;
+      system::revert( "PoW contract must be called from kernel" );
    }
 
    koinos::read_buffer rdbuf( (uint8_t*)argstr.c_str(), argstr.size() );
@@ -210,14 +194,7 @@ int main()
 
    if ( memcmp( pow.c_str() + 2, diff_meta.get_target().get_const(), pow.size() - 2 ) > 0 )
    {
-      system::log( "PoW did not meet target" );
-      ret.serialize( buffer );
-
-      system::result r;
-      r.set_code( 0 );
-      r.mutable_value().set( buffer.data(), buffer.get_size() );
-      system::exit ( r );
-      return 0;
+      system::revert( "PoW did not meet target" );
    }
 
    update_difficulty( diff_meta, head_block_time );
@@ -231,14 +208,7 @@ int main()
 
    if ( koinos::address_from_public_key( producer_key ) != signer )
    {
-      system::log( "Signature and signer are mismatching" );
-      ret.serialize( buffer );
-
-      system::result r;
-      r.set_code( 0 );
-      r.mutable_value().set( buffer.data(), buffer.get_size() );
-      system::exit ( r );
-      return 0;
+      system::revert( "Signature and signer are mismatching" );
    }
 
    // Mint block reward to address
@@ -252,11 +222,6 @@ int main()
 
    ret.set_value( success );
 
-   ret.serialize( buffer );
-   
-   system::result r;
-   r.set_code( 0 );
-   r.mutable_value().set( buffer.data(), buffer.get_size() );
-   system::exit ( r );
+   system::exit( ret );
    return 0;
 }
