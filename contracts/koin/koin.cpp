@@ -209,18 +209,12 @@ token::balance_of_result balance_of( const token::balance_of_arguments< constant
 
 token::transfer_result transfer( const token::transfer_arguments< constants::max_address_size, constants::max_address_size >& args )
 {
-   token::transfer_result res;
-   res.set_value( false );
-
    std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
    std::string to( reinterpret_cast< const char* >( args.get_to().get_const() ), args.get_to().get_length() );
    uint64_t value = args.get_value();
 
    if ( from == to )
-   {
-      system::log( "Cannot transfer to self" );
-      return res;
-   }
+      system::revert( "cannot transfer to self" );
 
    const auto [ caller, privilege ] = system::get_caller();
    if ( caller != from && !system::check_authority( from ) )
@@ -230,18 +224,12 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
-   {
-      system::log( "Account 'from' has insufficient balance" );
-      return res;
-   }
+      system::revert( "account 'from' has insufficient balance" );
 
    regenerate_mana( from_bal_obj );
 
    if ( from_bal_obj.mana() < value )
-   {
-      system::log( "Account 'from' has insufficient mana for transfer" );
-      return res;
-   }
+      system::revert( "account 'from' has insufficient mana for transfer" );
 
    token::mana_balance_object to_bal_obj;
    system::get_object( state::balance_space(), to, to_bal_obj );
@@ -266,15 +254,11 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    impacted.push_back( from );
    koinos::system::event( "koin.transfer", transfer_event, impacted );
 
-   res.set_value( true );
-   return res;
+   return token::transfer_result();
 }
 
 token::mint_result mint( const token::mint_arguments< constants::max_address_size >& args )
 {
-   token::mint_result res;
-   res.set_value( false );
-
    std::string to( reinterpret_cast< const char* >( args.get_to().get_const() ), args.get_to().get_length() );
    uint64_t amount = args.get_value();
 
@@ -282,11 +266,10 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    if ( privilege != chain::privilege::kernel_mode )
    {
 #ifdef BUILD_FOR_TESTING
-      if( !system::check_authority( constants::contract_id ) )
-         system::revert();
+      if ( !system::check_authority( constants::contract_id ) )
+         system::revert( "can only mint token with contract authority" );
 #else
-      system::log( "Can only mint token from kernel context" );
-      return res;
+      system::revert( "can only mint token from kernel context" );
 #endif
    }
 
@@ -295,10 +278,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
 
    // Check overflow
    if ( new_supply < supply )
-   {
-      system::log( "Mint would overflow supply" );
-      return res;
-   }
+      system::revert( "mint would overflow supply" );
 
    token::mana_balance_object to_bal_obj;
    system::get_object( state::balance_space(), to, to_bal_obj );
@@ -322,15 +302,11 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    impacted.push_back( to );
    koinos::system::event( "koin.mint", mint_event, impacted );
 
-   res.set_value( true );
-   return res;
+   return token::mint_result();
 }
 
 token::burn_result burn( const token::burn_arguments< constants::max_address_size >& args )
 {
-   token::burn_result res;
-   res.set_value( false );
-
    std::string from( reinterpret_cast< const char* >( args.get_from().get_const() ), args.get_from().get_length() );
    uint64_t value = args.get_value();
 
@@ -342,18 +318,12 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
-   {
-      system::log( "Account 'from' has insufficient balance" );
-      return res;
-   }
+      system::revert( "account 'from' has insufficient balance" );
 
    regenerate_mana( from_bal_obj );
 
    if ( from_bal_obj.mana() < value )
-   {
-      system::log( "Account 'from' has insufficient mana for burn" );
-      return res;
-   }
+      system::revert( "account 'from' has insufficient mana for burn" );
 
    from_bal_obj.set_balance( from_bal_obj.balance() - value );
    from_bal_obj.set_mana( from_bal_obj.mana() - value );
@@ -362,10 +332,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 
    // Check underflow
    if ( value > supply )
-   {
-      system::log( "Burn would underflow supply" );
-      return res;
-   }
+      system::revert( "burn would underflow supply" );
 
    auto new_supply = supply - value;
 
@@ -383,8 +350,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    impacted.push_back( from );
    koinos::system::event( "koin.burn", burn_event, impacted );
 
-   res.set_value( true );
-   return res;
+   return token::burn_result();
 }
 
 int main()
