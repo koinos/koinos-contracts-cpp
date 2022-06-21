@@ -30,8 +30,13 @@ constexpr uint32_t balance_id          = 1;
 std::string supply_key                 = "";
 const auto contract_id                 = system::get_contract_id();
 
+#ifdef BUILD_FOR_TESTING
 // 0x003c1756c0acf3b692631246da147ba66947b790eed4069e63 (16UjW8AKzuuePiRwmkvVDjuZvT2xksXb8N)
 const std::string governance_contract  = "\x00\x3c\x17\x56\xc0\xac\xf3\xb6\x92\x63\x12\x46\xda\x14\x7b\xa6\x69\x47\xb7\x90\xee\xd4\x06\x9e\x63"s;
+#else
+// 0x002226d99b6628dbaeb202b4acc9fb9a7217f4912f64e3b675 (147aWsRsveXK4jwz5bdLumJv3yfF95woSc)
+const std::string governance_contract  = "\x00\x22\x26\xd9\x9b\x66\x28\xdb\xae\xb2\x02\xb4\xac\xc9\xfb\x9a\x72\x17\xf4\x91\x2f\x64\xe3\xb6\x75"s;
+#endif
 
 } // constants
 
@@ -214,22 +219,22 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    uint64_t value = args.get_value();
 
    if ( from == to )
-      system::revert( "cannot transfer to self" );
+      system::fail( "cannot transfer to self" );
 
    const auto [ caller, privilege ] = system::get_caller();
    if ( caller != from && !system::check_authority( from ) )
-      system::revert( "from has not authorized transfer" );
+      system::fail( "from has not authorized transfer", chain::error_code::authorization_failure );
 
    token::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
-      system::revert( "account 'from' has insufficient balance" );
+      system::fail( "account 'from' has insufficient balance" );
 
    regenerate_mana( from_bal_obj );
 
    if ( from_bal_obj.mana() < value )
-      system::revert( "account 'from' has insufficient mana for transfer" );
+      system::fail( "account 'from' has insufficient mana for transfer" );
 
    token::mana_balance_object to_bal_obj;
    system::get_object( state::balance_space(), to, to_bal_obj );
@@ -267,9 +272,9 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    {
 #ifdef BUILD_FOR_TESTING
       if ( !system::check_authority( constants::contract_id ) )
-         system::revert( "can only mint token with contract authority" );
+         system::fail( "can only mint token with contract authority", chain::error_code::authorization_failure );
 #else
-      system::revert( "can only mint token from kernel context" );
+      system::fail( "can only mint token from kernel context" );
 #endif
    }
 
@@ -312,18 +317,18 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 
    const auto [ caller, privilege ] = system::get_caller();
    if ( caller != from && !system::check_authority( from ) )
-      system::revert( "from has not authorized burn" );
+      system::fail( "from has not authorized burn", chain::error_code::authorization_failure );
 
    token::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
-      system::revert( "account 'from' has insufficient balance" );
+      system::fail( "account 'from' has insufficient balance" );
 
    regenerate_mana( from_bal_obj );
 
    if ( from_bal_obj.mana() < value )
-      system::revert( "account 'from' has insufficient mana for burn" );
+      system::fail( "account 'from' has insufficient mana for burn" );
 
    from_bal_obj.set_balance( from_bal_obj.balance() - value );
    from_bal_obj.set_mana( from_bal_obj.mana() - value );
