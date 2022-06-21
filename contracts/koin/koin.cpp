@@ -274,7 +274,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
       if ( !system::check_authority( constants::contract_id ) )
          system::fail( "can only mint token with contract authority", chain::error_code::authorization_failure );
 #else
-      system::fail( "can only mint token from kernel context" );
+      system::fail( "can only mint token from kernel context", chain::error_code::authorization_failure );
 #endif
    }
 
