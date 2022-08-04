@@ -1,6 +1,13 @@
 #include <koinos/system/system_calls.hpp>
-#include <stdio.h>
+#include <limits>
 using namespace koinos;
+
+void foo( uint64_t x )
+{
+   static uint64_t y = 0;
+   y += x;
+   foo( x );
+}
 
 int main()
 {
@@ -40,14 +47,20 @@ int main()
          while(1) {}
          break;
       }
-      // Running out of stack
+      // Running out of execution context stack overflow
       case 0x04:
       {
          system::call( system::get_contract_id(), entry_point, std::string{} );
          break;
       }
-      // Test behavior of floating point
+      // Running out of VM stack
       case 0x05:
+      {
+         foo( 1 );
+         break;
+      }
+      // Test behavior of floating point
+      case 0x06:
       {
          float x = 1.3f;
          double y = 1.3f;
