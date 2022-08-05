@@ -92,6 +92,8 @@ enum entries : uint32_t
    burn_entry               = 0x859facc5
 };
 
+std::string arguments; // Declared globally to pass to check_authority
+
 using get_account_rc_arguments
    = chain::get_account_rc_arguments<
       constants::max_name_size
@@ -222,7 +224,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
       system::fail( "cannot transfer to self" );
 
    const auto [ caller, privilege ] = system::get_caller();
-   if ( caller != from && !system::check_authority( from ) )
+   if ( caller != from && !system::check_authority( from, arguments ) )
       system::fail( "from has not authorized transfer", chain::error_code::authorization_failure );
 
    token::mana_balance_object from_bal_obj;
@@ -316,7 +318,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    uint64_t value = args.get_value();
 
    const auto [ caller, privilege ] = system::get_caller();
-   if ( caller != from && !system::check_authority( from ) )
+   if ( caller != from && !system::check_authority( from, arguments ) )
       system::fail( "from has not authorized burn", chain::error_code::authorization_failure );
 
    token::mana_balance_object from_bal_obj;
@@ -360,11 +362,12 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 
 int main()
 {
-   auto [entry_point, args] = system::get_arguments();
+   uint32_t entry_point;
+   std::tie( entry_point, arguments ) = system::get_arguments();
 
    std::array< uint8_t, constants::max_buffer_size > retbuf;
 
-   koinos::read_buffer rdbuf( (uint8_t*)args.c_str(), args.size() );
+   koinos::read_buffer rdbuf( (uint8_t*)arguments.c_str(), arguments.size() );
    koinos::write_buffer buffer( retbuf.data(), retbuf.size() );
 
    switch( std::underlying_type_t< entries >( entry_point ) )
