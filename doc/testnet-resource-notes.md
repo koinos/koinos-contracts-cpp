@@ -139,7 +139,7 @@ void update_market( market& m, uint64_t resources_consumed )
    auto koin_token = koinos::token( constants::koin_contract );
 
    uint64_t phantom_rc = koin_token.total_supply();
-   MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
+   phantom_rc = MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
    rc_reserve_128 += phantom_rc;
    rc_reserve = uint64_t( std::min( (int128_t(1) << 64)-1, rc_reserve_128 ) );
 

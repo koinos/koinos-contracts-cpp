@@ -136,8 +136,8 @@ get_resource_limits_result get_resource_limits()
 #define DECAY_CONSTANT_MUL 0xd75a712f
 #define DECAY_CONSTANT_SHIFT 53
 
-#define PHANTOM_RC_CONSTANT_MUL 0xee9bfab5
-#define PHANTOM_RC_CONSTANT_SHIFT 59
+#define PHANTOM_RC_CONSTANT_MUL 0x91a2b3c5
+#define PHANTOM_RC_CONSTANT_SHIFT 45
 
 // Multiply by a number less than 1 using integer multiplication followed by a shift.
 // The result is guaranteed not to overflow, and the final cast is guaranteed to fit,
@@ -173,7 +173,7 @@ void update_market( market& m, uint64_t resources_consumed )
    auto koin_token = koinos::token( constants::koin_contract );
 
    uint64_t phantom_rc = koin_token.total_supply();
-   MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
+   phantom_rc = MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
    rc_reserve_128 += phantom_rc;
    rc_reserve = uint64_t( std::min( (int128_t(1) << 64)-1, rc_reserve_128 ) );
 
