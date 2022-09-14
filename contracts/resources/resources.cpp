@@ -1,11 +1,15 @@
 #include <koinos/system/system_calls.hpp>
 
 #include <koinos/contracts/resources/resources.h>
+#include <koinos/token.hpp>
 
 #include <boost/multiprecision/cpp_int.hpp>
 
+#include <string>
+
 using namespace koinos;
 using namespace koinos::contracts::resources;
+using namespace std::string_literals;
 
 using int128_t = boost::multiprecision::int128_t;
 
@@ -32,12 +36,13 @@ constexpr uint64_t max_network_per_block          = 1 << 20; // 1M block
 constexpr uint64_t compute_budget_per_block       = 57'500'000; // ~0.1s
 constexpr uint64_t max_compute_per_block          = 287'500'000; // ~0.5s
 
-// Exponential decay constant for 1 month half life
-// Constant is ( -ln(2) * num_blocks ) * 2^64
-constexpr uint64_t decay_constant                 = 18446694743881045523ull;
-
-// Exponential decay constant for 1 week half life
-// constexpr uint64_t decay_constant                 = 18446532661087609961ull;
+#ifdef BUILD_FOR_TESTING
+// Address 1BRmrUgtSQVUggoeE9weG4f7nidyydnYfQ
+const std::string koin_contract               = "\x00\x72\x60\xae\xaf\xad\xc7\x04\x31\xea\x9c\x3f\xbe\xf1\x35\xb9\xa4\x15\xc1\x0f\x51\x95\xe8\xd5\x57"s;
+#else
+// Address 19JntSm8pSNETT9aHTwAUHC5RMoaSmgZPJ
+const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
+#endif
 
 } // constants
 
@@ -128,12 +133,52 @@ get_resource_limits_result get_resource_limits()
    return res;
 }
 
-void update_market( market& m, uint64_t consumed )
+#define DECAY_CONSTANT_MUL 0xd75a712f
+#define DECAY_CONSTANT_SHIFT 53
+
+#define PHANTOM_RC_CONSTANT_MUL 0xee9bfab5
+#define PHANTOM_RC_CONSTANT_SHIFT 59
+
+// Multiply by a number less than 1 using integer multiplication followed by a shift.
+// The result is guaranteed not to overflow, and the final cast is guaranteed to fit,
+// as long as x, m are 64-bit, x*m does not overflow 127 bits,
+// and m, s represent multiplication by a number smaller than 1.
+#define MUL_SHIFT(x, m, s) \
+   uint64_t(((m) * int128_t(x)) >> (s))
+
+#define DECAY(x, m, s) \
+   x -= MUL_SHIFT(x, m, s);
+
+void update_market( market& m, uint64_t resources_consumed )
 {
-   auto k = int128_t( m.resource_supply() ) * int128_t( m.rc_reserve() );
-   m.set_resource_supply( m.resource_supply() + m.block_budget() - consumed );
-   m.set_resource_supply( ( ( int128_t( m.resource_supply() ) * constants::decay_constant ) >> 64 ).convert_to< uint64_t >() );
-   m.set_rc_reserve( ( ( k + ( m.resource_supply() - 1 ) ) / m.resource_supply() ).convert_to< uint64_t >() );
+   // Use price times quantity to back-calculate how much RC users spent.
+   auto [limit, cost] = calculate_market_limit( m );
+   int128_t rc_consumed = resources_consumed;
+   rc_consumed *= cost;
+
+   // Per (7), decay should apply after resource consumption and before budget.
+   uint64_t resource_supply = m.resource_supply();
+
+   // TODO:  Check for subtraction overflow, or write a comment explaining caller must check for overflow
+   resource_supply -= resources_consumed;
+   DECAY(resource_supply, DECAY_CONSTANT_MUL, DECAY_CONSTANT_SHIFT);
+   resource_supply += m.block_budget();
+
+   uint64_t rc_reserve = m.rc_reserve();
+
+   // Per (9), RC decay should apply before phantom RC or user consumption.
+   DECAY(rc_reserve, DECAY_CONSTANT_MUL, DECAY_CONSTANT_SHIFT);
+   int128_t rc_reserve_128 = int128_t(rc_reserve) + rc_consumed;
+
+   auto koin_token = koinos::token( constants::koin_contract );
+
+   uint64_t phantom_rc = koin_token.total_supply();
+   MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
+   rc_reserve_128 += phantom_rc;
+   rc_reserve = uint64_t( std::min( (int128_t(1) << 64)-1, rc_reserve_128 ) );
+
+   m.set_resource_supply( resource_supply );
+   m.set_rc_reserve( rc_reserve );
 }
 
 consume_block_resources_result consume_block_resources( const consume_block_resources_arguments& args )
