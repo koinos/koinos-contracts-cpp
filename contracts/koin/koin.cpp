@@ -136,6 +136,8 @@ chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& arg
    return res;
 }
 
+#define RC_PER_MANA 10000
+
 chain::consume_account_rc_result consume_account_rc( const consume_account_rc_arguments& args )
 {
    chain::consume_account_rc_result res;
@@ -154,14 +156,15 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
 
    regenerate_mana( bal_obj );
 
+   uint64_t mana_required = (args.value() + (RC_PER_MANA - 1)) / RC_PER_MANA;
    // Assumes mana cannot go negative...
-   if ( bal_obj.mana() < args.value() )
+   if ( bal_obj.mana() < mana_required )
    {
       system::log( "Account has insufficient mana for consumption" );
       return res;
    }
 
-   bal_obj.set_mana( bal_obj.mana() - args.value() );
+   bal_obj.set_mana( bal_obj.mana() - mana_required );
 
    system::put_object( state::balance_space(), owner, bal_obj );
 
