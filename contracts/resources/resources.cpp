@@ -175,7 +175,8 @@ void update_market( market& m, uint64_t resources_consumed )
    uint64_t phantom_rc = koin_token.total_supply();
    phantom_rc = MUL_SHIFT( phantom_rc, PHANTOM_RC_CONSTANT_MUL, PHANTOM_RC_CONSTANT_SHIFT );
    rc_reserve_128 += phantom_rc;
-   rc_reserve = uint64_t( std::min( (int128_t(1) << 64)-1, rc_reserve_128 ) );
+   // TODO:  rc_reserve should be truncated for storage purposes to be less likely to bump against this clamp
+   rc_reserve = uint64_t( std::min( (int128_t(1) << 63)-1, rc_reserve_128 ) );
 
    m.set_resource_supply( resource_supply );
    m.set_rc_reserve( rc_reserve );
