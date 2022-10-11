@@ -1,4 +1,5 @@
 #include <koinos/system/system_calls.hpp>
+#include <koinos/contracts/koin/koin.h>
 #include <koinos/contracts/token/token.h>
 
 #include <koinos/buffer.hpp>
@@ -104,7 +105,7 @@ using consume_account_rc_arguments
       constants::max_name_size
    >;
 
-void regenerate_mana( token::mana_balance_object& bal )
+void regenerate_mana( koin::mana_balance_object& bal )
 {
    auto head_block_time = system::get_head_info().head_block_time();
    auto delta = std::min( head_block_time - bal.last_mana_update(), constants::mana_regen_time_ms );
@@ -127,7 +128,7 @@ chain::get_account_rc_result get_account_rc( const get_account_rc_arguments& arg
       return res;
    }
 
-   token::mana_balance_object bal_obj;
+   koin::mana_balance_object bal_obj;
    system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
@@ -149,7 +150,7 @@ chain::consume_account_rc_result consume_account_rc( const consume_account_rc_ar
    }
 
    std::string owner( reinterpret_cast< const char* >( args.get_account().get_const() ), args.get_account().get_length() );
-   token::mana_balance_object bal_obj;
+   koin::mana_balance_object bal_obj;
    system::get_object( state::balance_space(), owner, bal_obj );
 
    regenerate_mana( bal_obj );
@@ -207,7 +208,7 @@ token::balance_of_result balance_of( const token::balance_of_arguments< constant
 
    std::string owner( reinterpret_cast< const char* >( args.get_owner().get_const() ), args.get_owner().get_length() );
 
-   token::mana_balance_object bal_obj;
+   koin::mana_balance_object bal_obj;
    system::get_object( state::balance_space(), owner, bal_obj );
 
    res.set_value( bal_obj.get_balance() );
@@ -227,7 +228,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    if ( caller != from && !system::check_authority( from, arguments ) )
       system::fail( "from has not authorized transfer", chain::error_code::authorization_failure );
 
-   token::mana_balance_object from_bal_obj;
+   koin::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
@@ -238,7 +239,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    if ( from_bal_obj.mana() < value )
       system::fail( "account 'from' has insufficient mana for transfer" );
 
-   token::mana_balance_object to_bal_obj;
+   koin::mana_balance_object to_bal_obj;
    system::get_object( state::balance_space(), to, to_bal_obj );
 
    regenerate_mana( to_bal_obj );
@@ -287,7 +288,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
    if ( new_supply < supply )
       system::revert( "mint would overflow supply" );
 
-   token::mana_balance_object to_bal_obj;
+   koin::mana_balance_object to_bal_obj;
    system::get_object( state::balance_space(), to, to_bal_obj );
 
    regenerate_mana( to_bal_obj );
@@ -321,7 +322,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
    if ( caller != from && !system::check_authority( from, arguments ) )
       system::fail( "from has not authorized burn", chain::error_code::authorization_failure );
 
-   token::mana_balance_object from_bal_obj;
+   koin::mana_balance_object from_bal_obj;
    system::get_object( state::balance_space(), from, from_bal_obj );
 
    if ( from_bal_obj.balance() < value )
