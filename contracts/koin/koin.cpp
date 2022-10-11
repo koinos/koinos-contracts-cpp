@@ -260,7 +260,7 @@ token::transfer_result transfer( const token::transfer_arguments< constants::max
    std::vector< std::string > impacted;
    impacted.push_back( to );
    impacted.push_back( from );
-   koinos::system::event( "koin.transfer", transfer_event, impacted );
+   koinos::system::event( "koinos.contracts.token.transfer_event", transfer_event, impacted );
 
    return token::transfer_result();
 }
@@ -308,7 +308,7 @@ token::mint_result mint( const token::mint_arguments< constants::max_address_siz
 
    std::vector< std::string > impacted;
    impacted.push_back( to );
-   koinos::system::event( "koin.mint", mint_event, impacted );
+   koinos::system::event( "koinos.contracts.token.mint_event", mint_event, impacted );
 
    return token::mint_result();
 }
@@ -356,7 +356,7 @@ token::burn_result burn( const token::burn_arguments< constants::max_address_siz
 
    std::vector< std::string > impacted;
    impacted.push_back( from );
-   koinos::system::event( "koin.burn", burn_event, impacted );
+   koinos::system::event( "koinos.contracts.token.burn_event", burn_event, impacted );
 
    return token::burn_result();
 }
