@@ -177,7 +177,7 @@ uint128_t calculate_k( const resource_parameters& p, const market& m )
 {
    auto block_print_rate = ( p.print_rate_premium() * m.block_budget() ) / p.print_rate_precision();
    auto max_resources = ( uint128_t( block_print_rate - m.block_budget() ) << 64 ) / p.one_minus_decay_constant();
-   return ( ( ( rc_per_block( p ) * max_resources ) / m.block_budget() ) * ( max_resources - m.block_budget() ) ).convert_to< uint64_t >();
+   return ( ( rc_per_block( p ) * max_resources ) / m.block_budget() ) * ( max_resources - m.block_budget() );
 }
 
 std::pair< uint64_t, uint64_t > calculate_market_limit( const resource_parameters& p, const market& m )
@@ -214,7 +214,6 @@ void update_market( const resource_parameters& p, market& m, uint64_t consumed )
    auto print_rate = ( m.block_budget() * p.print_rate_premium() ) / p.print_rate_precision();
    auto resource_supply = ( uint128_t( m.resource_supply() ) * p.decay_constant() ) >> 64;
    m.set_resource_supply( resource_supply.convert_to< uint64_t >() + print_rate - consumed );
-   //m.set_resource_supply( m.resource_supply() + print_rate - consumed );
 }
 
 consume_block_resources_result consume_block_resources( const consume_block_resources_arguments& args )
