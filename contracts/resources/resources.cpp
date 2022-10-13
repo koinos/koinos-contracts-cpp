@@ -29,14 +29,14 @@ const std::string markets_key                 = "markets";
 const std::string parameters_keys             = "parameters";
 
 constexpr uint64_t disk_budget_per_block_default    = 39600; // 10G per month
-constexpr uint64_t max_disk_per_block_default       = 200 << 10; // 200k
+constexpr uint64_t max_disk_per_block_default       = 1 << 19; // 512k
 constexpr uint64_t network_budget_per_block_default = 1 << 18; // 256k block
 constexpr uint64_t max_network_per_block_default    = 1 << 20; // 1M block
 constexpr uint64_t compute_budget_per_block_default = 57'500'000; // ~0.1s
 constexpr uint64_t max_compute_per_block_default    = 287'500'000; // ~0.5s
 
 constexpr uint64_t block_interval_ms_default        = 3'000; // 3s
-constexpr uint64_t rc_regen_ms_default              = 432'000'000; // 5 daysc
+constexpr uint64_t rc_regen_ms_default              = 432'000'000; // 5 days
 
 // Exponential decay constant for 1 month half life
 // Constant is ( 2 ^ (-1 / num_blocks) ) * 2^64
