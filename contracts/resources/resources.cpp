@@ -46,14 +46,6 @@ constexpr uint64_t one_minus_decay_constant_default = 147989089768795ull;
 constexpr uint64_t print_rate_premium_default       = 1688;
 constexpr uint64_t print_rate_precision_default     = 1000;
 
-#ifdef BUILD_FOR_TESTING
-// Address 1BRmrUgtSQVUggoeE9weG4f7nidyydnYfQ
-const std::string koin_contract               = "\x00\x72\x60\xae\xaf\xad\xc7\x04\x31\xea\x9c\x3f\xbe\xf1\x35\xb9\xa4\x15\xc1\x0f\x51\x95\xe8\xd5\x57"s;
-#else
-// Address 19JntSm8pSNETT9aHTwAUHC5RMoaSmgZPJ
-const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
-#endif
-
 } // constants
 
 
@@ -91,8 +83,7 @@ uint64_t rc_per_block( const resource_parameters& p )
 
    if ( rc == 0 )
    {
-      auto koin_token = koinos::token( constants::koin_contract );
-      rc = ( ( uint128_t( koin_token.total_supply() ) * p.block_interval_ms() ) / ( p.rc_regen_ms() * constants::num_resources ) ).convert_to< uint64_t >();
+      rc = ( ( uint128_t( koinos::token::koin().total_supply() ) * p.block_interval_ms() ) / ( p.rc_regen_ms() * constants::num_resources ) ).convert_to< uint64_t >();
    }
 
    return rc;
