@@ -212,9 +212,7 @@ int main()
    }
 
    // Mint block reward to address
-   auto koin_token = koinos::token( constants::koin_contract );
-
-   auto success = koin_token.mint( signer, constants::block_reward );
+   auto success = koinos::token::koin().mint( signer, constants::block_reward );
    if ( !success )
    {
       system::log( "Could not mint KOIN to producer address" );
