@@ -31,14 +31,6 @@ constexpr uint64_t pow_end_date               = 1672531199000;
 constexpr uint64_t block_reward               = 10000000000;
 constexpr uint32_t initial_difficulty_bits    = 24;
 
-#ifdef BUILD_FOR_TESTING
-// Address 1BRmrUgtSQVUggoeE9weG4f7nidyydnYfQ
-const std::string koin_contract               = "\x00\x72\x60\xae\xaf\xad\xc7\x04\x31\xea\x9c\x3f\xbe\xf1\x35\xb9\xa4\x15\xc1\x0f\x51\x95\xe8\xd5\x57"s;
-#else
-// Address 19JntSm8pSNETT9aHTwAUHC5RMoaSmgZPJ
-const std::string koin_contract               = "\x00\x5b\x1e\x61\xd3\x72\x59\xb9\xc2\xd9\x9b\xf4\x17\xf5\x92\xe0\xb7\x77\x25\x16\x5d\x24\x88\xbe\x45"s;
-#endif
-
 } // constants
 
 namespace state {
