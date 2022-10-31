@@ -19,7 +19,7 @@ using int128_t = boost::multiprecision::int128_t;
 
 namespace constants {
 
-#if BUILD_FOR_TESTING
+#ifdef BUILD_FOR_TESTING
 static const std::string koinos_name   = "Test Koin";
 static const std::string koinos_symbol = "tKOIN";
 #else
