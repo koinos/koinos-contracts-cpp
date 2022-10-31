@@ -1,5 +1,7 @@
 #include <koinos/contracts.hpp>
 #include <koinos/system/system_calls.hpp>
+
+#include <koinos/chain/authority.h>
 #include <koinos/contracts/koin/koin.h>
 #include <koinos/contracts/token/token.h>
 
@@ -88,7 +90,8 @@ enum entries : uint32_t
    balance_of_entry         = 0x5c721497,
    transfer_entry           = 0x27f576ca,
    mint_entry               = 0xdc6f17bb,
-   burn_entry               = 0x859facc5
+   burn_entry               = 0x859facc5,
+   authorize_entry          = 0x4a2dbd90
 };
 
 std::string arguments; // Declared globally to pass to check_authority
@@ -446,6 +449,13 @@ int main()
          arg.deserialize( rdbuf );
 
          auto res = burn( arg );
+         res.serialize( buffer );
+         break;
+      }
+      case entries::authorize_entry:
+      {
+         chain::authorize_result res;
+         res.set_value( system::check_system_authority() );
          res.serialize( buffer );
          break;
       }

@@ -1,6 +1,7 @@
 #include <koinos/system/system_calls.hpp>
 #include <koinos/token.hpp>
 
+#include <koinos/chain/authority.h>
 #include <koinos/contracts/resources/resources.h>
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -18,7 +19,8 @@ enum entries : uint32_t
    get_resource_markets_entry            = 0xebe9b9e7,
    set_resource_markets_parameters_entry = 0x4b31e959,
    get_resource_parameters_entry         = 0xf53b5216,
-   set_resource_parameters_entry         = 0xa08e6b90
+   set_resource_parameters_entry         = 0xa08e6b90,
+   authorize_entry                       = 0x4a2dbd90
 };
 
 namespace constants {
@@ -296,6 +298,13 @@ int main()
          arg.deserialize( rdbuf );
 
          set_resource_parameters( arg );
+         break;
+      }
+      case entries::authorize_entry:
+      {
+         chain::authorize_result res;
+         res.set_value( system::check_system_authority() );
+         res.serialize( buffer );
          break;
       }
       default:
