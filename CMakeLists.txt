@@ -9,7 +9,7 @@ if(CCACHE_PROGRAM)
    set(CMAKE_XCODE_ATTRIBUTE_LDPLUSPLUS   "${CMAKE_SOURCE_DIR}/ci/ccache_clang++")
 endif()
 
-project(koinos_system_contracts VERSION 0.1.0 LANGUAGES CXX)
+project(koinos_system_contracts VERSION 1.0.0 LANGUAGES CXX)
 
 #option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." OFF)
 
