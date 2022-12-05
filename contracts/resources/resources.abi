@@ -4,42 +4,42 @@
          "argument"    : "koinos.chain.get_resource_limits_arguments",
          "return"      : "koinos.chain.get_resource_limits_result",
          "entry-point" : "0x427a0394",
-         "description" : "Get Resource Limits",
+         "description" : "Gets the resource limits",
          "read-only"   : true
       },
-      "consume_block_resources_entry": {
+      "consume_block_resources": {
          "argument"    : "koinos.chain.consume_block_resources_arguments",
          "return"      : "koinos.chain.consume_block_resources_result",
          "entry-point" : "0x9850b1fd",
-         "description" : "Consume Block Resources",
+         "description" : "Consumes block resources",
          "read-only"   : false
       },
       "get_resource_markets": {
          "argument"    : "koinos.contracts.resources.get_resource_markets_arguments",
          "return"      : "koinos.contracts.resources.get_resource_markets_result",
          "entry-point" : "0xebe9b9e7",
-         "description" : "Get Resource Markets",
+         "description" : "Gets the resource markets",
          "read-only"   : true
       },
       "set_resource_markets_parameters": {
          "argument"    : "koinos.contracts.resources.set_resource_markets_parameters_arguments",
          "return"      : "koinos.contracts.resources.set_resource_markets_parameters_result",
          "entry-point" : "0x4b31e959",
-         "description" : "Sets Resource Markets Parameters",
+         "description" : "Sets the resource markets parameters",
          "read-only"   : false
       },
      "get_resource_parameters": {
          "argument"    : "koinos.contracts.resources.get_resource_parameters_arguments",
          "return"      : "koinos.contracts.resources.get_resource_parameters_result",
          "entry-point" : "0xf53b5216",
-         "description" : "Get Resource Parameters",
+         "description" : "Gets the resource parameters",
          "read-only"   : true
       },
       "set_resource_parameters": {
          "argument"    : "koinos.contracts.resources.set_resource_parameters_arguments",
          "return"      : "koinos.contracts.resources.set_resource_parameters_result",
          "entry-point" : "0xa08e6b90",
-         "description" : "Sets Resource Parameters",
+         "description" : "Sets the resource parameters",
          "read-only"   : false
       }
    },
