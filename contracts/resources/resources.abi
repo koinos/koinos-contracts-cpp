@@ -1,0 +1,47 @@
+{
+   "methods" : {
+      "get_resource_limits": {
+         "argument"    : "koinos.chain.get_resource_limits_arguments",
+         "return"      : "koinos.chain.get_resource_limits_result",
+         "entry-point" : "0x427a0394",
+         "description" : "Gets the resource limits",
+         "read-only"   : true
+      },
+      "consume_block_resources": {
+         "argument"    : "koinos.chain.consume_block_resources_arguments",
+         "return"      : "koinos.chain.consume_block_resources_result",
+         "entry-point" : "0x9850b1fd",
+         "description" : "Consumes block resources",
+         "read-only"   : false
+      },
+      "get_resource_markets": {
+         "argument"    : "koinos.contracts.resources.get_resource_markets_arguments",
+         "return"      : "koinos.contracts.resources.get_resource_markets_result",
+         "entry-point" : "0xebe9b9e7",
+         "description" : "Gets the resource markets",
+         "read-only"   : true
+      },
+      "set_resource_markets_parameters": {
+         "argument"    : "koinos.contracts.resources.set_resource_markets_parameters_arguments",
+         "return"      : "koinos.contracts.resources.set_resource_markets_parameters_result",
+         "entry-point" : "0x4b31e959",
+         "description" : "Sets the resource markets parameters",
+         "read-only"   : false
+      },
+     "get_resource_parameters": {
+         "argument"    : "koinos.contracts.resources.get_resource_parameters_arguments",
+         "return"      : "koinos.contracts.resources.get_resource_parameters_result",
+         "entry-point" : "0xf53b5216",
+         "description" : "Gets the resource parameters",
+         "read-only"   : true
+      },
+      "set_resource_parameters": {
+         "argument"    : "koinos.contracts.resources.set_resource_parameters_arguments",
+         "return"      : "koinos.contracts.resources.set_resource_parameters_result",
+         "entry-point" : "0xa08e6b90",
+         "description" : "Sets the resource parameters",
+         "read-only"   : false
+      }
+   },
+   "types" : "CrgNCiprb2lub3MvY29udHJhY3RzL3Jlc291cmNlcy9yZXNvdXJjZXMucHJvdG8SGmtvaW5vcy5jb250cmFjdHMucmVzb3VyY2VzIoEBCgZtYXJrZXQSKwoPcmVzb3VyY2Vfc3VwcGx5GAEgASgEQgIwAVIOcmVzb3VyY2VTdXBwbHkSJQoMYmxvY2tfYnVkZ2V0GAMgASgEQgIwAVILYmxvY2tCdWRnZXQSIwoLYmxvY2tfbGltaXQYBCABKARCAjABUgpibG9ja0xpbWl0IvsBChByZXNvdXJjZV9tYXJrZXRzEkUKDGRpc2tfc3RvcmFnZRgBIAEoCzIiLmtvaW5vcy5jb250cmFjdHMucmVzb3VyY2VzLm1hcmtldFILZGlza1N0b3JhZ2USTwoRbmV0d29ya19iYW5kd2lkdGgYAiABKAsyIi5rb2lub3MuY29udHJhY3RzLnJlc291cmNlcy5tYXJrZXRSEG5ldHdvcmtCYW5kd2lkdGgSTwoRY29tcHV0ZV9iYW5kd2lkdGgYAyABKAsyIi5rb2lub3MuY29udHJhY3RzLnJlc291cmNlcy5tYXJrZXRSEGNvbXB1dGVCYW5kd2lkdGgiXwoRbWFya2V0X3BhcmFtZXRlcnMSJQoMYmxvY2tfYnVkZ2V0GAEgASgEQgIwAVILYmxvY2tCdWRnZXQSIwoLYmxvY2tfbGltaXQYAiABKARCAjABUgpibG9ja0xpbWl0IrkCChNyZXNvdXJjZV9wYXJhbWV0ZXJzEi4KEWJsb2NrX2ludGVydmFsX21zGAEgASgEQgIwAVIPYmxvY2tJbnRlcnZhbE1zEiIKC3JjX3JlZ2VuX21zGAIgASgEQgIwAVIJcmNSZWdlbk1zEikKDmRlY2F5X2NvbnN0YW50GAMgASgEQgIwAVINZGVjYXlDb25zdGFudBI7ChhvbmVfbWludXNfZGVjYXlfY29uc3RhbnQYBCABKARCAjABUhVvbmVNaW51c0RlY2F5Q29uc3RhbnQSMAoScHJpbnRfcmF0ZV9wcmVtaXVtGAUgASgEQgIwAVIQcHJpbnRSYXRlUHJlbWl1bRI0ChRwcmludF9yYXRlX3ByZWNpc2lvbhgGIAEoBEICMAFSEnByaW50UmF0ZVByZWNpc2lvbiK1Agopc2V0X3Jlc291cmNlX21hcmtldHNfcGFyYW1ldGVyc19hcmd1bWVudHMSUAoMZGlza19zdG9yYWdlGAEgASgLMi0ua29pbm9zLmNvbnRyYWN0cy5yZXNvdXJjZXMubWFya2V0X3BhcmFtZXRlcnNSC2Rpc2tTdG9yYWdlEloKEW5ldHdvcmtfYmFuZHdpZHRoGAIgASgLMi0ua29pbm9zLmNvbnRyYWN0cy5yZXNvdXJjZXMubWFya2V0X3BhcmFtZXRlcnNSEG5ldHdvcmtCYW5kd2lkdGgSWgoRY29tcHV0ZV9iYW5kd2lkdGgYAyABKAsyLS5rb2lub3MuY29udHJhY3RzLnJlc291cmNlcy5tYXJrZXRfcGFyYW1ldGVyc1IQY29tcHV0ZUJhbmR3aWR0aCIoCiZzZXRfcmVzb3VyY2VfbWFya2V0c19wYXJhbWV0ZXJzX3Jlc3VsdCIgCh5nZXRfcmVzb3VyY2VfbWFya2V0c19hcmd1bWVudHMiYQobZ2V0X3Jlc291cmNlX21hcmtldHNfcmVzdWx0EkIKBXZhbHVlGAEgASgLMiwua29pbm9zLmNvbnRyYWN0cy5yZXNvdXJjZXMucmVzb3VyY2VfbWFya2V0c1IFdmFsdWUibAohc2V0X3Jlc291cmNlX3BhcmFtZXRlcnNfYXJndW1lbnRzEkcKBnBhcmFtcxgBIAEoCzIvLmtvaW5vcy5jb250cmFjdHMucmVzb3VyY2VzLnJlc291cmNlX3BhcmFtZXRlcnNSBnBhcmFtcyIgCh5zZXRfcmVzb3VyY2VfcGFyYW1ldGVyc19yZXN1bHQiIwohZ2V0X3Jlc291cmNlX3BhcmFtZXRlcnNfYXJndW1lbnRzImcKHmdldF9yZXNvdXJjZV9wYXJhbWV0ZXJzX3Jlc3VsdBJFCgV2YWx1ZRgBIAEoCzIvLmtvaW5vcy5jb250cmFjdHMucmVzb3VyY2VzLnJlc291cmNlX3BhcmFtZXRlcnNSBXZhbHVlQkJaQGdpdGh1Yi5jb20va29pbm9zL2tvaW5vcy1wcm90by1nb2xhbmcva29pbm9zL2NvbnRyYWN0cy9yZXNvdXJjZXNiBnByb3RvMw=="
+}
